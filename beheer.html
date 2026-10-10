@@ -32,8 +32,20 @@
     <div class="field"><label for="lgMail">E-mailadres</label><input id="lgMail" class="input" type="email" autocomplete="username" required></div>
     <div class="field"><label for="lgPw">Wachtwoord</label><input id="lgPw" class="input" type="password" autocomplete="current-password" required></div>
     <button class="btn primary" type="submit" id="lgBtn">Inloggen</button>
-    <button class="btn small" type="button" id="lgForgot" style="justify-self:start">Wachtwoord vergeten?</button>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <button class="btn small" type="button" id="lgForgot">Wachtwoord vergeten?</button>
+      <button class="btn small" type="button" id="lgToSignup">Nog geen account? Aanmelden</button>
+    </div>
     <div class="err" id="lgErr" role="alert"></div>
+  </form>
+  <form id="signupForm" class="panel" style="display:grid;gap:12px" hidden>
+    <b>Account aanmaken</b>
+    <p class="note" style="margin:0">Alleen met je werk-e-mailadres. Je krijgt een e-mail om je adres te bevestigen.</p>
+    <div class="field"><label for="suMail">Werk-e-mailadres</label><input id="suMail" class="input" type="email" autocomplete="username" required placeholder="naam@inova-alkmaar.nl"></div>
+    <div class="field"><label for="suPw">Kies een wachtwoord (minimaal 10 tekens)</label><input id="suPw" class="input" type="password" minlength="10" autocomplete="new-password" required></div>
+    <button class="btn primary" type="submit" id="suBtn">Account aanmaken</button>
+    <button class="btn small" type="button" id="suToLogin" style="justify-self:start">Ik heb al een account</button>
+    <div class="err" id="suErr" role="alert"></div>
   </form>
   <form id="pwForm" class="panel" style="display:grid;gap:12px" hidden>
     <b>Kies een nieuw wachtwoord</b>
@@ -45,7 +57,7 @@
 
 <section id="noaccess" class="login" hidden>
   <h1>Geen toegang</h1>
-  <p class="lead">Je bent ingelogd, maar je account staat (nog) niet op de lijst van medewerkers. Vraag de beheerder om je toe te voegen.</p>
+  <p class="lead">Je bent ingelogd, maar dit e-mailadres hoort niet bij een toegestaan werkdomein. Meld je aan met je werk-e-mailadres, of vraag de beheerder om je toe te voegen.</p>
 </section>
 
 <section id="boot" class="login"><p class="note">Laden…</p></section>

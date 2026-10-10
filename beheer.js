@@ -2,6 +2,8 @@
 /* Beheer: inloggen, link maken, vragen & talen bewerken (opslaan in Supabase), resultaten en Excel-export. */
 let CONFIG_UPDATED=null;   // updated_at van de geladen vragenlijst (voor botsingscontrole)
 let RESP=[];               // antwoorden uit de database
+let ROLE=null;             // 'beheerder' of 'docent'
+const DOMAINS_HINT='@inova-alkmaar.nl';
 
 /* ---------- inloggen ---------- */
 function showOnly(id){['login','noaccess','boot'].forEach(x=>$('#'+x).hidden=x!==id);document.querySelectorAll('.tab').forEach(s=>s.hidden=true);$('#tabs').hidden=true;}
@@ -14,25 +16,39 @@ $('#lgForgot').onclick=async()=>{const m=$('#lgMail').value.trim();if(!m){$('#lg
  $('#lgErr').textContent=error?'Versturen lukte niet: '+error.message:'Als dit adres bekend is, ontvang je een e-mail met een link om een nieuw wachtwoord te kiezen.';};
 $('#pwForm').addEventListener('submit',async e=>{e.preventDefault();const {error}=await sb.auth.updateUser({password:$('#pwNew').value});
  if(error){$('#pwErr').textContent=error.message;return;}toast('Wachtwoord opgeslagen');$('#pwForm').hidden=true;$('#loginForm').hidden=false;start();});
+$('#lgToSignup').onclick=()=>{$('#loginForm').hidden=true;$('#signupForm').hidden=false;$('#suMail').value=$('#lgMail').value;};
+$('#suToLogin').onclick=()=>{$('#signupForm').hidden=true;$('#loginForm').hidden=false;};
+$('#signupForm').addEventListener('submit',async e=>{e.preventDefault();$('#suErr').textContent='';
+ const mail=$('#suMail').value.trim().toLowerCase();
+ $('#suBtn').disabled=true;
+ const {data,error}=await sb.auth.signUp({email:mail,password:$('#suPw').value,options:{emailRedirectTo:location.origin+location.pathname}});
+ $('#suBtn').disabled=false;
+ if(error){$('#suErr').textContent=/rate|limit/i.test(error.message)?'Er zijn net te veel aanmeldingen tegelijk. Probeer het over een uur opnieuw.':'Aanmelden lukte niet: '+error.message;return;}
+ if(data.session){start();return;}
+ $('#suErr').style.color='var(--ok)';$('#suErr').textContent='Gelukt! Open de e-mail die we naar '+mail+' hebben gestuurd en klik op de bevestigingslink. Daarna kun je inloggen.';});
 $('#logout').onclick=async()=>{await sb.auth.signOut();location.reload();};
 
 async function start(){
  if(!sb){showOnly('boot');$('#boot').innerHTML='<p class="err">Supabase is nog niet ingesteld. Vul js/config.js in.</p>';return;}
  const {data:{session}}=await sb.auth.getSession();
  if(!session){showOnly('login');return;}
- const {data:isStaff,error:e1}=await sb.rpc('is_staff');
- if(e1||!isStaff){showOnly('noaccess');$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;return;}
- try{const row=await loadConfig();CONFIG_UPDATED=row?row.updated_at:null;if(!row)await saveConfig(true);}
+ const {data:role,error:e1}=await sb.rpc('my_role');
+ ROLE=e1?null:role;
+ if(!ROLE){showOnly('noaccess');$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;return;}
+ try{const row=await loadConfig();CONFIG_UPDATED=row?row.updated_at:null;
+  if(!row){if(ROLE==='beheerder')await saveConfig(true);else{showOnly('boot');$('#boot').innerHTML='<p class="lead">De vragenlijst is nog niet ingesteld. Vraag de beheerder om eerst in te loggen.</p>';$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;return;}}}
  catch(e){showOnly('boot');$('#boot').innerHTML='<p class="err">De vragenlijst kon niet worden geladen: '+(e.message||e)+'</p>';return;}
  await loadAudio();
  ['login','noaccess','boot'].forEach(x=>$('#'+x).hidden=true);
- $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;
- syncV();const t=(location.hash||'').slice(1);showTab(['link','beheer','resultaten'].includes(t)?t:'link');
+ $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email+' · '+ROLE;
+ document.querySelector('#tabs [data-tab="beheer"]').hidden=ROLE!=='beheerder';
+ $('#rsExport').hidden=ROLE!=='beheerder';
+ syncV();const t=(location.hash||'').slice(1);showTab(['link','resultaten'].concat(ROLE==='beheerder'?['beheer']:[]).includes(t)?t:'link');
 }
 sb&&sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){showOnly('login');$('#loginForm').hidden=true;$('#pwForm').hidden=false;}});
 
 /* ---------- tabs ---------- */
-function showTab(id){document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id?'true':'false'));
+function showTab(id){if(id==='beheer'&&ROLE!=='beheerder')id='link';document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id?'true':'false'));
  document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!=='tab-'+id);stopAudio();
  if(id==='beheer')renderEditor();if(id==='resultaten')loadResults();if(id==='link')renderLink();
  try{history.replaceState(null,'','#'+id)}catch(e){}window.scrollTo(0,0);}
@@ -205,6 +221,7 @@ function colsDef(){const c=[];S.questions.forEach((q,i)=>{if(q.type==='matrix')(
 function rowOf(d,cols){const dt=new Date(d.ts);const o={'Datum':dt.toLocaleDateString('nl-NL'),'Tijd':dt.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}),'Vestiging':vName(d.v),'Groep':d.g,'Taal':L(d.lang).n};
  cols.forEach(c=>{const a=d.ans[c.key];o[c.h]=a==null?'':c.q.type==='stars'?a:c.q.type==='open'?a:(S.options[a]?S.options[a].t.nl:a);});return o;}
 $('#rsExport').onclick=()=>{
+ if(ROLE!=='beheerder'){toast('Exporteren kan alleen de beheerder.');return;}
  if(typeof XLSX==='undefined'){toast('Excel-bibliotheek niet geladen.');return;}
  const cols=colsDef(),all=filtered();if(!all.length){toast('Geen reacties in deze selectie.');return;}
  const wb=XLSX.utils.book_new();
