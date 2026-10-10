@@ -3,6 +3,9 @@
 let CONFIG_UPDATED=null;   // updated_at van de geladen vragenlijst (voor botsingscontrole)
 let RESP=[];               // antwoorden uit de database
 let ROLE=null;             // 'beheerder' of 'docent'
+let ME=null;               // e-mail van de ingelogde gebruiker
+let BEZET={};             // 'vestiging|groep' -> e-mail van de gekoppelde docent
+let MINE=[];               // groepen die aan deze gebruiker gekoppeld zijn
 const DOMAINS_HINT='@inova-alkmaar.nl';
 
 /* ---------- inloggen ---------- */
@@ -31,6 +34,7 @@ $('#logout').onclick=async()=>{await sb.auth.signOut();location.reload();};
 async function start(){
  if(!sb){showOnly('boot');$('#boot').innerHTML='<p class="err">Supabase is nog niet ingesteld. Vul js/config.js in.</p>';return;}
  const {data:{session}}=await sb.auth.getSession();
+ ME=session?(session.user.email||'').toLowerCase():null;
  if(!session){showOnly('login');return;}
  const {data:role,error:e1}=await sb.rpc('my_role');
  ROLE=e1?null:role;
@@ -42,7 +46,9 @@ async function start(){
  ['login','noaccess','boot'].forEach(x=>$('#'+x).hidden=true);
  $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email+' · '+ROLE;
  document.querySelector('#tabs [data-tab="beheer"]').hidden=ROLE!=='beheerder';
- $('#rsExport').hidden=ROLE!=='beheerder';$('#rsPrint').hidden=ROLE!=='beheerder';
+ $('#rsExport').hidden=ROLE!=='beheerder';$('#rsPrint').hidden=ROLE!=='beheerder';$('#rsClear').hidden=ROLE!=='beheerder';
+ await loadMine();
+ $('#rsScope').textContent=ROLE==='beheerder'?'Je ziet de resultaten van alle groepen.':'Je ziet alleen de resultaten van de groepen die aan jou gekoppeld zijn (zie Link maken → Mijn groepen).';
  syncV();const t=(location.hash||'').slice(1);showTab(['link','resultaten'].concat(ROLE==='beheerder'?['beheer']:[]).includes(t)?t:'link');
 }
 sb&&sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){showOnly('login');$('#loginForm').hidden=true;$('#pwForm').hidden=false;}});
@@ -50,11 +56,16 @@ sb&&sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){showOnly('login'
 /* ---------- tabs ---------- */
 function showTab(id){if(id==='beheer'&&ROLE!=='beheerder')id='link';document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id?'true':'false'));
  document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!=='tab-'+id);stopAudio();
- if(id==='beheer')renderEditor();if(id==='resultaten')loadResults();if(id==='link')renderLink();
+ if(id==='beheer')renderEditor();if(id==='resultaten')loadResults();if(id==='link'){renderLink();loadMine().then(syncLink);}
  try{history.replaceState(null,'','#'+id)}catch(e){}window.scrollTo(0,0);}
 document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function fillV(sel,withAll){const cur=sel.value;sel.innerHTML='';if(withAll)sel.append(h('option',{value:''},'Alle vestigingen'));S.vestigingen.forEach(v=>sel.append(h('option',{value:v.c},v.n)));if([...sel.options].some(o=>o.value===cur))sel.value=cur;}
-function fillG(sel,vc){const cur=sel.value;const v=S.vestigingen.find(x=>x.c===vc);sel.innerHTML='';(v&&v.groepen||[]).forEach(g=>sel.append(h('option',{value:g},g)));if(!sel.options.length)sel.append(h('option',{value:''},'(nog geen groepen ingevoerd)'));if([...sel.options].some(o=>o.value===cur))sel.value=cur;}
+function fillG(sel,vc){const cur=sel.value;const v=S.vestigingen.find(x=>x.c===vc);sel.innerHTML='';
+ (v&&v.groepen||[]).forEach(g=>{const wie=BEZET[vc+'|'+g];const ander=wie&&wie!==ME;
+  sel.append(h('option',{value:g,disabled:ander&&ROLE!=='beheerder'?'':null},g+(wie===ME?' (jouw groep)':ander?' (al gekoppeld aan '+wie+')':'')));});
+ if(!sel.options.length)sel.append(h('option',{value:''},'(nog geen groepen ingevoerd)'));
+ const ok=[...sel.options].filter(o=>!o.disabled);
+ if(ok.some(o=>o.value===cur))sel.value=cur;else if(ok.length)sel.value=ok[0].value;else sel.value='';}
 function syncV(){fillV($('#lkV'));fillV($('#rsV'),true);fillG($('#lkG'),$('#lkV').value);}
 
 /* ---------- opslaan ---------- */
@@ -76,6 +87,9 @@ window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.return
 const BASEURL=location.origin+location.pathname.replace(/beheer\.html$/,'');
 function renderLink(){
  const v=$('#lkV').value,g=$('#lkG').value;
+ const wie=BEZET[v+'|'+g],vrij=!wie||wie===ME||ROLE==='beheerder';
+ ['lkWa','lkTry','lkCopy'].forEach(id=>{const el=$('#'+id),off=!g||!vrij;el.classList.toggle('disabled',off);el.style.opacity=off?'.45':'';el.style.pointerEvents=off?'none':'';el.setAttribute('aria-disabled',off);});
+ if(g&&!vrij){$('#lkUrl').textContent='Deze groep is al gekoppeld aan '+wie+'.';$('#lkWa').removeAttribute('href');$('#lkTry').removeAttribute('href');$('#qr').innerHTML='';$('#lkPrev').textContent='';return;}
  if(!g){$('#lkUrl').textContent='Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#qr').innerHTML='';$('#lkPrev').textContent='';return;}
  const url=BASEURL+'?v='+encodeURIComponent(v)+'&g='+encodeURIComponent(slug(g));
  $('#lkUrl').textContent=url;const msg=$('#lkMsg').value.replace('{link}',url);$('#lkPrev').textContent=msg;
@@ -83,8 +97,27 @@ function renderLink(){
  const box=$('#qr');box.innerHTML='';
  try{const qr=qrcode(0,'M');qr.addData(url);qr.make();box.innerHTML=qr.createImgTag(6,8);const im=box.querySelector('img');if(im)im.alt='QR-code naar de vragenlijst';}catch(e){box.textContent='QR-code kon niet worden gemaakt.';}
 }
+/* Docent koppelen aan de gekozen groep zodra hij de link deelt, kopieert of bekijkt */
+async function koppel(){
+ const v=$('#lkV').value,g=$('#lkG').value;if(!ME||!v||!g)return true;
+ if(ROLE==='beheerder')return true;                       // beheerder ziet alles en bezet geen groep
+ if(MINE.some(m=>m.vestiging===v&&m.groep===g))return true;
+ const wie=BEZET[v+'|'+g];if(wie&&wie!==ME){toast('Deze groep is al gekoppeld aan '+wie+'.');return false;}
+ const {error}=await sb.from('docent_groep').insert({email:ME,vestiging:v,groep:g});
+ if(error){await loadMine();syncLink();toast(error.code==='23505'?'Een collega heeft deze groep net gekozen. Kies een andere groep.':'Koppelen lukte niet: '+error.message);return false;}
+ MINE.push({vestiging:v,groep:g});BEZET[v+'|'+g]=ME;renderMine();syncLink();toast('Je bent gekoppeld aan '+g+'. Je ziet nu de resultaten van deze groep.');return true;
+}
+function syncLink(){fillG($('#lkG'),$('#lkV').value);renderLink();}
+async function loadMine(){if(!ME)return;
+ const {data:bz,error:e1}=await sb.rpc('bezette_groepen');if(!e1){BEZET={};(bz||[]).forEach(r=>BEZET[r.vestiging+'|'+r.groep]=r.email);}
+ MINE=Object.entries(BEZET).filter(([k,e])=>e===ME).map(([k])=>{const i=k.indexOf('|');return {vestiging:k.slice(0,i),groep:k.slice(i+1)};});
+ renderMine();}
+function renderMine(){const box=$('#lkMine');if(!box)return;box.innerHTML='';if(!MINE.length)return;
+ box.append(h('b',{style:'font-size:13px'},'Mijn groepen'),h('div',{class:'chips',style:'margin-top:4px'},MINE.map(m=>{const b=h('button',{class:'chip ok',type:'button',title:'Klik om deze koppeling te verwijderen'},vName(m.vestiging)+' · '+m.groep+' ✕');
+  b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure='1';b.textContent='Ontkoppelen? Klik nog eens';return;}const {error}=await sb.from('docent_groep').delete().eq('email',ME).eq('vestiging',m.vestiging).eq('groep',m.groep);if(error){toast('Lukte niet: '+error.message);return;}MINE=MINE.filter(x=>x!==m);delete BEZET[m.vestiging+'|'+m.groep];renderMine();syncLink();};return b;})));}
+['lkWa','lkTry'].forEach(id=>$('#'+id).addEventListener('click',e=>{if($('#'+id).classList.contains('disabled')){e.preventDefault();return;}koppel();}));
 $('#lkV').addEventListener('change',()=>{fillG($('#lkG'),$('#lkV').value);renderLink();});$('#lkG').addEventListener('change',renderLink);$('#lkMsg').addEventListener('input',renderLink);
-$('#lkCopy').onclick=()=>{const t=$('#lkUrl').textContent;navigator.clipboard?.writeText(t).then(()=>toast('Link gekopieerd'),()=>{const r=document.createRange();r.selectNodeContents($('#lkUrl'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Link geselecteerd: kopieer met Ctrl+C');});};
+$('#lkCopy').onclick=async()=>{if($('#lkCopy').classList.contains('disabled'))return;if(!(await koppel()))return;const t=$('#lkUrl').textContent;navigator.clipboard?.writeText(t).then(()=>toast('Link gekopieerd'),()=>{const r=document.createRange();r.selectNodeContents($('#lkUrl'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Link geselecteerd: kopieer met Ctrl+C');});};
 
 /* ---------- editor ---------- */
 let edOpen=new Set();let uid=0;
@@ -239,6 +272,20 @@ function renderEditor(){
  if(handm.length)ov.append(h('div',{class:'note'},'Zelf ingedeeld: ',handm.map(k=>{const b=h('button',{class:'chip',type:'button',title:'Klik om de handmatige keuze te wissen'},k+' → '+vName(S.klasVestiging[k])+' ✕');b.onclick=()=>{delete S.klasVestiging[k];assignKlassen();save();syncV();renderEditor();};return b;})));
  kc.append(h('div',{class:'field'},h('label',null,'Indeling per vestiging'),ov));
  ed.append(kc);
+ renderKoppelingen(ed);
+}
+/* Beheerder: overzicht van alle koppelingen docent ↔ groep */
+async function renderKoppelingen(ed){
+ const sec=h('div',{class:'ed-sec'},h('h2',null,'Docenten en hun groepen'),h('span',{class:'note'},'Een docent wordt gekoppeld zodra hij de link van een groep deelt. Per groep kan maar één docent gekoppeld zijn. Verwijder hier een koppeling als een groep naar een andere docent gaat.'));
+ const card=h('div',{class:'qcard'},h('span',{class:'note'},'Laden…'));ed.append(sec,card);
+ const {data,error}=await sb.from('docent_groep').select('email,vestiging,groep,created_at').order('email');
+ card.innerHTML='';if(error){card.append(h('span',{class:'err'},'Laden lukte niet: '+error.message));return;}
+ if(!data.length){card.append(h('span',{class:'note'},'Nog geen koppelingen.'));return;}
+ const tb=h('table',{class:'simple'});tb.append(h('thead',null,h('tr',null,h('th',null,'Docent'),h('th',null,'Vestiging'),h('th',null,'Groep'),h('th',null,'Sinds'),h('th',null,''))));
+ const body=h('tbody');data.forEach(k=>{const x=h('button',{class:'btn small',type:'button'},'Verwijder');
+  x.onclick=async()=>{if(!x.dataset.sure){x.dataset.sure='1';x.textContent='Zeker?';return;}const {error}=await sb.from('docent_groep').delete().eq('email',k.email).eq('vestiging',k.vestiging).eq('groep',k.groep);if(error){toast('Lukte niet: '+error.message);return;}tr.remove();};
+  const tr=h('tr',null,h('td',null,k.email),h('td',null,vName(k.vestiging)),h('td',null,k.groep),h('td',null,new Date(k.created_at).toLocaleDateString('nl-NL')),h('td',null,x));body.append(tr);});
+ tb.append(body);card.append(h('div',{class:'tablewrap'},tb));
 }
 /* Klassen automatisch indelen op beginletters (langste match wint: "HW" gaat voor "H") */
 function vestigingVoor(k){
@@ -337,6 +384,30 @@ $('#rsPrint').onclick=()=>{
  $('#rsPrintHead').append(h('img',{src:'logo.png',alt:'EdINOVA'}),h('h1',null,'Cursistenevaluatie'),h('p',null,
   'Vestiging: '+(v.value?v.options[v.selectedIndex].text:'alle')+' · Klas: '+(g.value||'alle')+' · Periode: '+(f||'begin')+' t/m '+(t||'vandaag')+' · Gemaakt op '+new Date().toLocaleDateString('nl-NL')));
  window.print();
+};
+
+/* Resultaten leegmaken (alleen beheerder): verwijdert de reacties van de huidige selectie */
+$('#rsClear').onclick=()=>{
+ if(ROLE!=='beheerder')return;
+ const box=$('#rsClearBox'),sel=filtered(),v=$('#rsV'),g=$('#rsG'),f=$('#rsFrom').value,t=$('#rsTo').value;
+ box.innerHTML='';box.hidden=false;
+ if(!sel.length){box.append(h('b',null,'Er zijn geen reacties in deze selectie.'),' ',Object.assign(h('button',{class:'btn small',type:'button'},'Sluiten'),{onclick:()=>{box.hidden=true;}}));return;}
+ const wat='Vestiging: '+(v.value?v.options[v.selectedIndex].text:'alle')+' · Klas: '+(g.value||'alle')+' · Periode: '+(f||'begin')+' t/m '+(t||'vandaag');
+ const ok=h('button',{class:'btn small danger',type:'button'},'Ja, '+sel.length+' reacties definitief verwijderen');
+ const dl=h('button',{class:'btn small',type:'button'},'Eerst Excel downloaden');dl.onclick=()=>$('#rsExport').click();
+ const no=h('button',{class:'btn small',type:'button'},'Annuleren');no.onclick=()=>{box.hidden=true;};
+ ok.onclick=async()=>{
+  if(!ok.dataset.sure){ok.dataset.sure='1';ok.textContent='Weet je het zeker? Klik nog een keer om te verwijderen';return;}
+  ok.disabled=true;ok.textContent='Bezig met verwijderen…';
+  const ids=sel.map(d=>d.id);let fout=null;
+  for(let i=0;i<ids.length&&!fout;i+=200){const {error}=await sb.from('responses').delete().in('id',ids.slice(i,i+200));if(error)fout=error;}
+  box.hidden=true;
+  if(fout)toast('Verwijderen lukte niet: '+fout.message,6000);else toast(sel.length+' reacties verwijderd.');
+  loadResults();
+ };
+ box.append(h('b',null,'Je staat op het punt '+sel.length+' reacties te verwijderen.'),
+  h('p',{class:'note',style:'margin:4px 0 8px'},wat+'. Dit kan niet ongedaan worden gemaakt. Download eerst de Excel als je de gegevens wilt bewaren. Wil je maar een deel verwijderen? Kies dan eerst een vestiging, klas of periode.'),
+  h('div',{style:'display:flex;flex-wrap:wrap;gap:8px'},dl,ok,no));
 };
 
 start();

@@ -80,6 +80,8 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оцінюванн
         <a class="btn" id="lkTry" target="_blank" rel="noopener">Bekijk als cursist</a>
       </div>
       <span class="note">Antwoorden die je zelf via “Bekijk als cursist” verstuurt, tellen mee in de resultaten.</span>
+      <span class="note">Zodra je de link deelt, kopieert of bekijkt, word je aan deze groep gekoppeld. Per groep kan maar één docent gekoppeld zijn; groepen van een collega kun je niet kiezen. Bij Resultaten zie je alleen jouw groepen.</span>
+      <div id="lkMine"></div>
     </div>
     <div class="panel" style="display:grid;gap:14px;justify-items:start">
       <b>Voorbeeld in WhatsApp</b>
@@ -121,11 +123,13 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оцінюванн
     <div>
       <div class="eyebrow">Voor de coördinator</div>
       <h2 style="font-size:26px;margin-top:4px">Resultaten</h2>
+      <p class="note" id="rsScope" style="margin:4px 0 0"></p>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       <button class="btn" id="rsReload">Vernieuwen</button>
       <button class="btn" id="rsPrint">Rapport opslaan als PDF</button>
       <button class="btn primary" id="rsExport">Download Excel</button>
+      <button class="btn danger" id="rsClear">Resultaten leegmaken</button>
     </div>
   </div>
   <div class="filters">
@@ -134,6 +138,7 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оцінюванн
     <div class="field"><label for="rsFrom">Vanaf</label><input id="rsFrom" class="input" type="date"></div>
     <div class="field"><label for="rsTo">Tot en met</label><input id="rsTo" class="input" type="date"></div>
   </div>
+  <div class="panel clearbox" id="rsClearBox" hidden></div>
   <div class="print-only" id="rsPrintHead"></div>
   <div class="kpis" id="rsKpis"></div>
   <div class="rgrid" id="rsGrid"></div>
