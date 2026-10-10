@@ -42,7 +42,7 @@ async function start(){
  ['login','noaccess','boot'].forEach(x=>$('#'+x).hidden=true);
  $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email+' · '+ROLE;
  document.querySelector('#tabs [data-tab="beheer"]').hidden=ROLE!=='beheerder';
- $('#rsExport').hidden=ROLE!=='beheerder';
+ $('#rsExport').hidden=ROLE!=='beheerder';$('#rsPrint').hidden=ROLE!=='beheerder';
  syncV();const t=(location.hash||'').slice(1);showTab(['link','resultaten'].concat(ROLE==='beheerder'?['beheer']:[]).includes(t)?t:'link');
 }
 sb&&sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){showOnly('login');$('#loginForm').hidden=true;$('#pwForm').hidden=false;}});
@@ -173,14 +173,78 @@ function renderEditor(){
  const ladd=h('button',{class:'btn small',type:'button'},'Taal toevoegen');ladd.onclick=()=>{const c=lcode.value.trim().toLowerCase();if(!/^[a-z]{2,3}$/.test(c)||!lname.value.trim()||S.langs.some(l=>l.c===c)){toast('Vul een nieuwe taalcode (2 of 3 letters) en naam in.');return;}S.langs.push({c,n:lname.value.trim(),dir:lrtl.checked?'rtl':'ltr',bcp:c});save();renderEditor();toast(lname.value.trim()+' toegevoegd. Alle teksten staan op “ontbreekt”.');};
  lc.append(h('div',{class:'qhead'},lcode,lname,h('label',{class:'chk'},lrtl,'rechts-naar-links'),ladd));ed.append(lc);
 
- ed.append(h('div',{class:'ed-sec'},h('h2',null,'Vestigingen en groepen'),h('span',{class:'note'},'Voer de groepen vooraf in, één per regel. De docent kiest zijn groep uit deze lijst bij Link maken. Let op: wijzig je een groepsnaam, dan werkt de oude link van die groep niet meer.')));
- const vc=h('div',{class:'qcard'});S.vestigingen.forEach((v,vi)=>{
-  const ga=h('textarea',{class:'input',rows:Math.max(2,(v.groepen||[]).length),'aria-label':'Groepen '+v.n,placeholder:'bijv. B1 di-do ochtend'});ga.value=(v.groepen||[]).join('\n');
-  ga.oninput=()=>{v.groepen=ga.value.split('\n').map(x=>x.trim()).filter(Boolean);save();syncV();};
-  const c=h('input',{class:'input',value:v.c,'aria-label':'Code'}),n=h('input',{class:'input',value:v.n,'aria-label':'Naam'});c.oninput=()=>{v.c=c.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');save();syncV();};n.oninput=()=>{v.n=n.value;save();syncV();};
-  const x=h('button',{class:'btn small',type:'button','aria-label':'Vestiging verwijderen'},'✕');x.onclick=()=>{if(x.dataset.sure){S.vestigingen.splice(vi,1);save();syncV();renderEditor();}else{x.dataset.sure='1';x.textContent='Zeker?';}};
-  vc.append(h('div',{class:'vrow'},h('div',{class:'field'},h('label',null,'Code (in link)'),c),h('div',{class:'field'},h('label',null,'Naam'),n),h('div',{class:'field'},h('label',null,'Groepen'),ga),x));});
- const va=h('button',{class:'btn small',type:'button'},'+ Vestiging');va.onclick=()=>{S.vestigingen.push({c:'NIEUW',n:'Nieuwe vestiging',groepen:[]});save();syncV();renderEditor();};vc.append(h('div',null,va));ed.append(vc);
+ /* ---- Vestigingen (eerst) ---- */
+ ensureKlassen();
+ ed.append(h('div',{class:'ed-sec'},h('h2',null,'Vestigingen'),h('span',{class:'note'},'"Herkenbaar aan" bepaalt bij welke vestiging een klas hoort: een code of woord dat los in de klasnaam staat. Bijvoorbeeld "BW" (BW-A2, MAP-BW-MIX2) of "Bolder" (Z-route De Bolder). Meerdere mogelijk, gescheiden door een komma.')));
+ const vc=h('div',{class:'qcard'});
+ S.vestigingen.forEach((v,vi)=>{
+  const c=h('input',{class:'input',value:v.c,'aria-label':'Code'}),n=h('input',{class:'input',value:v.n,'aria-label':'Naam'}),p=h('input',{class:'input',value:v.prefix||'','aria-label':'Beginletters klas',placeholder:'bijv. BW of Bolder',title:'Code of woord in de klasnaam. Meerdere mogelijk, gescheiden door een komma.'});
+  c.oninput=()=>{v.c=c.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');save();syncV();};
+  n.oninput=()=>{v.n=n.value;save();syncV();};
+  p.onchange=()=>{v.prefix=p.value.trim();assignKlassen();save();syncV();renderEditor();};
+  const x=h('button',{class:'btn small',type:'button','aria-label':'Vestiging verwijderen'},'✕');x.onclick=()=>{if(x.dataset.sure){S.vestigingen.splice(vi,1);assignKlassen();save();syncV();renderEditor();}else{x.dataset.sure='1';x.textContent='Zeker?';}};
+  vc.append(h('div',{class:'vrow vrow2'},h('div',{class:'field'},h('label',null,'Code (in link)'),c),h('div',{class:'field'},h('label',null,'Naam'),n),h('div',{class:'field'},h('label',null,'Herkenbaar aan'),p),h('div',{class:'field'},h('label',null,'Klassen'),h('span',{class:'chip',style:'justify-self:start;margin-top:8px'},(v.groepen||[]).length)),x));
+ });
+ const va=h('button',{class:'btn small',type:'button'},'+ Vestiging');va.onclick=()=>{S.vestigingen.push({c:'NIEUW',n:'Nieuwe vestiging',prefix:'',groepen:[]});save();syncV();renderEditor();};vc.append(h('div',null,va));ed.append(vc);
+
+ /* ---- Klassen (daarna) ---- */
+ ed.append(h('div',{class:'ed-sec'},h('h2',null,'Klassen'),h('span',{class:'note'},'Importeer een Excel-lijst of typ de klassen hieronder, één per regel. De vestiging wordt automatisch gekozen op basis van de beginletters. Let op: wijzig je een klasnaam, dan werkt de oude link van die klas niet meer.')));
+ const kc=h('div',{class:'qcard'});
+ // import
+ const fi=h('input',{type:'file',accept:'.xlsx,.xls,.csv'});
+ const prev=h('div',{class:'tf-detail'});prev.hidden=true;
+ fi.onchange=async()=>{const f=fi.files[0];if(!f)return;
+  try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+   let col=0,start=0;
+   for(let r=0;r<Math.min(6,rows.length);r++){const hi=(rows[r]||[]).findIndex(x=>/klas|groep|class|cursus/i.test(String(x)));if(hi>=0){col=hi;start=r+1;break;}}
+   const list=splitKlassen(rows.slice(start).map(r=>String(r[col]??'')));
+   showImport(list);}catch(e){toast('Dit bestand kon niet worden gelezen: '+e.message);}
+  fi.value='';};
+ function showImport(list){prev.innerHTML='';prev.hidden=false;
+  const per={};const none=[];list.forEach(k=>{const v=vestigingVoor(k);if(v)(per[v.c]=per[v.c]||[]).push(k);else none.push(k);});
+  prev.append(h('b',null,list.length+' klassen gevonden'));
+  S.vestigingen.forEach(v=>{if(per[v.c])prev.append(h('div',null,h('b',null,v.n+': '),per[v.c].join(', ')));});
+  if(none.length)prev.append(h('div',{class:'err'},'Geen vestiging herkend voor: '+none.join(', ')+'. Na het importeren kies je hiervoor zelf de vestiging.'));
+  const add=h('button',{class:'btn small primary',type:'button'},'Toevoegen aan bestaande klassen');
+  add.onclick=()=>{S.klassen=[...new Set(S.klassen.concat(list))];assignKlassen();save();syncV();renderEditor();toast(list.length+' klassen geïmporteerd');};
+  const rep=h('button',{class:'btn small',type:'button'},'Bestaande klassen vervangen');
+  rep.onclick=()=>{if(!rep.dataset.sure){rep.dataset.sure='1';rep.textContent='Zeker? Oude klassen verdwijnen';return;}S.klassen=list;assignKlassen();save();syncV();renderEditor();toast('Klassenlijst vervangen');};
+  const no=h('button',{class:'btn small',type:'button'},'Annuleren');no.onclick=()=>{prev.hidden=true;};
+  prev.append(h('div',{style:'display:flex;flex-wrap:wrap;gap:8px'},add,rep,no));}
+ kc.append(h('div',{class:'qhead'},h('label',{class:'up',style:'font-size:14px;padding:8px 12px'},'📄 Excel-lijst importeren (.xlsx of .csv)',fi),h('span',{class:'note'},'De klassen staan in de eerste kolom, of in een kolom met de kop "Klas".')),prev);
+ // handmatig
+ const ta=h('textarea',{class:'input',rows:Math.min(14,Math.max(4,S.klassen.length+1)),'aria-label':'Alle klassen',placeholder:'bijv.\nAlk-A2-jongeren\nBW-A2 examentraining\nH-Alfa 1'});ta.value=S.klassen.join('\n');
+ ta.onchange=()=>{S.klassen=splitKlassen(ta.value.split('\n'));assignKlassen();save();syncV();renderEditor();};
+ kc.append(h('div',{class:'field'},h('label',null,'Alle klassen (één per regel)'),ta));
+ // overzicht
+ const ov=h('div',{class:'tf-detail'});S.vestigingen.forEach(v=>ov.append(h('div',null,h('b',null,v.n+' ('+(v.groepen||[]).length+'): '),(v.groepen||[]).join(', ')||'–')));
+ const none=S.klassen.filter(k=>!vestigingVoor(k));
+ if(none.length){ov.append(h('div',{class:'err'},'Kies de vestiging voor deze klassen:'));
+  none.forEach(k=>{const sel=h('select',{class:'input',style:'max-width:220px','aria-label':'Vestiging voor '+k},h('option',{value:''},'– kies vestiging –'),S.vestigingen.map(v=>h('option',{value:v.c},v.n)));
+   sel.onchange=()=>{S.klasVestiging=S.klasVestiging||{};S.klasVestiging[k]=sel.value;assignKlassen();save();syncV();renderEditor();};
+   ov.append(h('div',{class:'qhead'},h('span',{style:'min-width:200px'},k),sel));});}
+ const handm=Object.keys(S.klasVestiging||{}).filter(k=>S.klassen.includes(k)&&S.klasVestiging[k]);
+ if(handm.length)ov.append(h('div',{class:'note'},'Zelf ingedeeld: ',handm.map(k=>{const b=h('button',{class:'chip',type:'button',title:'Klik om de handmatige keuze te wissen'},k+' → '+vName(S.klasVestiging[k])+' ✕');b.onclick=()=>{delete S.klasVestiging[k];assignKlassen();save();syncV();renderEditor();};return b;})));
+ kc.append(h('div',{class:'field'},h('label',null,'Indeling per vestiging'),ov));
+ ed.append(kc);
+}
+/* Klassen automatisch indelen op beginletters (langste match wint: "HW" gaat voor "H") */
+function vestigingVoor(k){
+ const hand=(S.klasVestiging||{})[k];if(hand){const v=S.vestigingen.find(x=>x.c===hand);if(v)return v;}
+ // de vestigingscode is een los stukje van de naam (gescheiden door - of spatie), bijv. "BW-A2", "MAP-BW-MIX2", "H-Alfa 1"
+ const tokens=k.toLowerCase().split(/[-\s_\/]+/).filter(Boolean);
+ const herk=v=>(v.prefix||'').toLowerCase().split(',').map(x=>x.trim()).filter(Boolean);
+ for(const t of tokens){const v=S.vestigingen.find(x=>herk(x).includes(t));if(v)return v;}
+ return null;}
+/* Klassen opschonen: ';' splitst, '*)' en dubbele spaties weg, dubbele klassen één keer */
+function splitKlassen(cells){return [...new Set(cells.flatMap(c=>String(c).split(';')).map(x=>x.replace(/\*\)/g,'').replace(/\s+/g,' ').trim()).filter(Boolean))];}
+function assignKlassen(){S.vestigingen.forEach(v=>v.groepen=[]);(S.klassen||[]).forEach(k=>{const v=vestigingVoor(k);if(v)v.groepen.push(k);});}
+function ensureKlassen(){
+ const DEF={ALK:'Alk',HHW:'HW',BEV:'BW',VEL:'V',HRN:'H'};
+ S.vestigingen.forEach(v=>{if(v.prefix==null)v.prefix=DEF[v.c]||'';if(!v.c&&/alkmaar/i.test(v.n)){v.c='ALK';v.prefix=v.prefix||'Alk';}});
+ if(!S.vestigingen.some(v=>/texel/i.test(v.n))){S.vestigingen.push({c:'TXL',n:'Texel',prefix:'Bolder',groepen:[]});save();}
+ if(!Array.isArray(S.klassen)){S.klassen=[];S.vestigingen.forEach(v=>(v.groepen||[]).forEach(g=>S.klassen.push(g)));}
+
 }
 $('#edReset').onclick=()=>{$('#edReset2').hidden=false;};
 $('#edResetNo').onclick=()=>{$('#edReset2').hidden=true;};
@@ -226,10 +290,38 @@ $('#rsExport').onclick=()=>{
  const cols=colsDef(),all=filtered();if(!all.length){toast('Geen reacties in deze selectie.');return;}
  const wb=XLSX.utils.book_new();
  const mk=rows=>{const ws=XLSX.utils.json_to_sheet(rows.map(d=>rowOf(d,cols)),{header:['Datum','Tijd','Vestiging','Groep','Taal',...cols.map(c=>c.h)]});ws['!cols']=[{wch:11},{wch:6},{wch:14},{wch:20},{wch:12},...cols.map(()=>({wch:18}))];if(rows.length)ws['!autofilter']={ref:ws['!ref']};return ws;};
+ XLSX.utils.book_append_sheet(wb,overzicht(all),'Overzicht');
  XLSX.utils.book_append_sheet(wb,mk(all),'Alle');
  const used=new Set(['Alle']);
  S.vestigingen.forEach(v=>{const rows=all.filter(d=>d.v===v.c);let name=v.n.replace(/[\\\/\?\*\[\]:]/g,'').slice(0,31)||v.c;if(used.has(name))name=(v.c+' '+name).slice(0,31);used.add(name);XLSX.utils.book_append_sheet(wb,mk(rows),name);});
  XLSX.writeFile(wb,'cursistenevaluatie_ruwe_data_'+new Date().toISOString().slice(0,10)+'.xlsx');
+};
+
+/* Overzicht: per vraag en antwoord het aantal en percentage, totaal en per vestiging */
+function overzicht(all){
+ const vs=S.vestigingen.filter(v=>all.some(d=>d.v===v.c));
+ const head=['Vraag','Antwoord','Aantal (alle)','% (alle)',...vs.flatMap(v=>[v.n+' (aantal)',v.n+' (%)'])];
+ const rows=[head];
+ const block=(label,key,opts,lbl)=>{
+  const tot=all.filter(d=>d.ans[key]!=null&&d.ans[key]!=='');const per=vs.map(v=>tot.filter(d=>d.v===v.c));
+  opts.forEach((o,i)=>{const n=tot.filter(d=>d.ans[key]===o).length;
+   rows.push([i===0?label:'',lbl[i],n,tot.length?Math.round(n/tot.length*1000)/10:0,...per.flatMap(p=>{const m=p.filter(d=>d.ans[key]===o).length;return[m,p.length?Math.round(m/p.length*1000)/10:0];})]);});
+  rows.push(['','Aantal antwoorden',tot.length,'',...per.flatMap(p=>[p.length,''])]);rows.push([]);};
+ S.questions.forEach((q,i)=>{
+  if(q.type==='choice'||q.type==='matrix'){const sc=S.scales[q.scale];if(!sc)return;const lbl=sc.o.map(o=>S.options[o]?S.options[o].t.nl:o);
+   if(q.type==='matrix')(q.rows||[]).forEach(r=>block(`${qNum(i)}. ${q.t.nl} ${r.t.nl}`,q.id+'.'+r.id,sc.o,lbl));else block(`${qNum(i)}. ${q.t.nl}`,q.id,sc.o,lbl);}
+  else if(q.type==='stars')block(`${qNum(i)}. ${q.t.nl}`,q.id,[1,2,3,4,5],['1 ster ('+q.low.nl+')','2 sterren','3 sterren','4 sterren','5 sterren ('+q.high.nl+')']);
+ });
+ const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:60},{wch:26},{wch:12},{wch:9},...vs.flatMap(()=>[{wch:12},{wch:9}])];return ws;}
+
+/* Rapport als PDF: de browser maakt er een PDF van via afdrukken */
+$('#rsPrint').onclick=()=>{
+ if(ROLE!=='beheerder')return;
+ const v=$('#rsV'),g=$('#rsG'),f=$('#rsFrom').value,t=$('#rsTo').value;
+ $('#rsPrintHead').innerHTML='';
+ $('#rsPrintHead').append(h('img',{src:'logo.png',alt:'EdINOVA'}),h('h1',null,'Cursistenevaluatie'),h('p',null,
+  'Vestiging: '+(v.value?v.options[v.selectedIndex].text:'alle')+' · Klas: '+(g.value||'alle')+' · Periode: '+(f||'begin')+' t/m '+(t||'vandaag')+' · Gemaakt op '+new Date().toLocaleDateString('nl-NL')));
+ window.print();
 };
 
 start();

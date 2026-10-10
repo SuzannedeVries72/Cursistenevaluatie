@@ -16,7 +16,7 @@ function renderPhone(noAuto){
  const autoBtn=h('button',{class:'iconbtn'+(C.auto?' on':''),type:'button','aria-pressed':C.auto?'true':'false','aria-label':'Voorlezen',html:SPK+'<span>'+(C.auto?'ON':'OFF')+'</span>'});
  autoBtn.onclick=()=>{C.auto=!C.auto;saveDraft();renderPhone();};
  const langBtn=h('button',{class:'iconbtn',type:'button',html:GLOBE+'<span>'+lg.c.toUpperCase()+'</span>','aria-label':'Taal kiezen'});langBtn.onclick=()=>{C.sheet=true;renderPhone(true);};
- ph.append(h('div',{class:'ph-top'},h('div',{class:'ctx',html:PIN},h('span',null,vName(CTX.v)+' · '+CTX.g)),autoBtn,langBtn));
+ ph.append(h('div',{class:'ph-top'},h('img',{src:'logo.png',alt:'EdINOVA',class:'logo-sm'}),h('div',{class:'ctx',html:PIN},h('span',null,vName(CTX.v)+' · '+CTX.g)),autoBtn,langBtn));
  const body=h('main',{class:'ph-body',dir:lg.dir,lang:lg.c});ph.append(body);
  const nav=h('div',{class:'ph-nav',dir:lg.dir});
  let main=null;
@@ -90,7 +90,7 @@ async function submit(){
  store.set(DONE_KEY(),new Date().toISOString());C.ans={};return true;
 }
 
-function fatal(msg){$('#phone').innerHTML='';$('#phone').append(h('main',{class:'ph-body'},h('div',{class:'thanks'},h('div',{class:'big'},'🔗'),h('h1',null,msg),h('p',{class:'note'},'Vraag je docent om de juiste link.'))));}
+function fatal(msg){$('#phone').innerHTML='';$('#phone').append(h('div',{class:'ph-top'},h('img',{src:'logo.png',alt:'EdINOVA',class:'logo-sm'})),h('main',{class:'ph-body'},h('div',{class:'thanks'},h('div',{class:'big'},'🔗'),h('h1',null,msg),h('p',{class:'note'},'Vraag je docent om de juiste link.'))));}
 
 (async function boot(){
  try{await loadConfig();}catch(e){console.error(e);fatal('De vragenlijst kan nu niet worden geladen.');return;}

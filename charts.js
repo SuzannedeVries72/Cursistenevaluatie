@@ -96,7 +96,7 @@ function renderResults(){
   h('div',{class:'kpi'},h('b',null,topL?L(topL[0]).n:'–'),h('span',null,'meest gekozen taal'+(topL?' ('+Math.round(topL[1]/D.length*100)+'%)':''))));
  const grid=$('#rsGrid');grid.innerHTML='';
  if(!D.length){grid.append(h('div',{class:'rcard',style:'grid-column:1/-1'},h('b',null,'Nog geen reacties in deze selectie')));return;}
- if(D.length<5)grid.append(h('div',{class:'rcard',style:'grid-column:1/-1'},h('b',null,'Minder dan 5 reacties'),h('span',{class:'note'},'In de echte versie wordt deze selectie niet apart getoond, zodat antwoorden niet te herleiden zijn.')));
+ if(D.length<5)grid.append(h('div',{class:'rcard',style:'grid-column:1/-1'},h('b',null,'Minder dan 5 reacties'),h('span',{class:'note'},'Deel deze uitslag niet los: bij zo weinig reacties zijn antwoorden mogelijk te herleiden tot een cursist.')));
 
  // overzicht: respons per vestiging (kolommen) en per taal (gerangschikt)
  const vc=S.vestigingen.map(x=>({lbl:x.n,v:D.filter(d=>d.v===x.c).length}));

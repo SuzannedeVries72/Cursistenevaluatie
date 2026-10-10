@@ -95,9 +95,12 @@ function defaultState(){return{
   {id:'q10',type:'open',req:false,t:T('Wat kunnen wij nog verbeteren?','What can we improve?','ما الذي يمكننا تحسينه؟','چه چیزی را می‌توانیم بهتر کنیم؟','እንታይ ከነመሓይሽ ንኽእል?','Що ми можемо покращити?','Neyi daha iyi yapabiliriz?','Maxaan hagaajin karnaa?')}
  ],
  vestigingen:[
-  {c:'ALK',n:'Alkmaar',groepen:['B1 di-do ochtend','A2 ma-wo middag','Z-route vrijdag']},
-  {c:'HHW',n:'Heerhugowaard',groepen:['A2 di-do ochtend','B1 ma-wo avond']},
-  {c:'BEV',n:'Beverwijk',groepen:['A1 ma-wo-vr ochtend','B1 di-do middag']},
-  {c:'VEL',n:'Velsen',groepen:['A2 ma-wo ochtend','B1 di-do middag']},
-  {c:'HRN',n:'Hoorn',groepen:['A2 ma-wo ochtend','Z-route di-do']}]
+  {c:'ALK',n:'Alkmaar',prefix:'Alk',groepen:[]},
+  {c:'HHW',n:'Heerhugowaard',prefix:'HW',groepen:[]},
+  {c:'BEV',n:'Beverwijk',prefix:'BW',groepen:[]},
+  {c:'VEL',n:'Velsen',prefix:'V',groepen:[]},
+  {c:'HRN',n:'Hoorn',prefix:'H',groepen:[]},
+  {c:'TXL',n:'Texel',prefix:'Bolder',groepen:[]}],
+ klassen:[],
+ klasVestiging:{}
 };}

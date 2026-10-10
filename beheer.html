@@ -12,7 +12,7 @@
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><b>Cursistenevaluatie</b><span>INOVA · EdINOVA</span></div>
+    <div class="brand"><img src="logo.png" alt="EdINOVA" class="logo" width="148" height="31"><b>Cursistenevaluatie</b></div>
     <nav class="tabs" role="tablist" id="tabs" hidden>
       <button role="tab" data-tab="link" aria-selected="true">Link maken</button>
       <button role="tab" data-tab="beheer">Vragen &amp; talen</button>
@@ -124,7 +124,8 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оцінюванн
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       <button class="btn" id="rsReload">Vernieuwen</button>
-      <button class="btn primary" id="rsExport">Download Excel (ruwe data per vestiging)</button>
+      <button class="btn" id="rsPrint">Rapport opslaan als PDF</button>
+      <button class="btn primary" id="rsExport">Download Excel</button>
     </div>
   </div>
   <div class="filters">
@@ -133,6 +134,7 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оцінюванн
     <div class="field"><label for="rsFrom">Vanaf</label><input id="rsFrom" class="input" type="date"></div>
     <div class="field"><label for="rsTo">Tot en met</label><input id="rsTo" class="input" type="date"></div>
   </div>
+  <div class="print-only" id="rsPrintHead"></div>
   <div class="kpis" id="rsKpis"></div>
   <div class="rgrid" id="rsGrid"></div>
 </section>
