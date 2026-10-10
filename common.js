@@ -20,6 +20,7 @@ async function loadConfig(){
  const {data,error}=await sb.from('survey_config').select('data,updated_at').eq('id',1).maybeSingle();
  if(error)throw error;
  S=data?data.data:defaultState();
+ migrateConfig();
  return data;
 }
 function qNum(i){let n=0,sub=0;for(let j=0;j<=i;j++){if(S.questions[j].sub&&j>0){sub++;}else{n++;sub=0;}}return sub?n+String.fromCharCode(96+sub+1):String(n);}
@@ -31,7 +32,7 @@ function valid(o,l){return l==='nl'||(o[l]&&(o._src||{})[l]===o.nl);}
 function tx(o,l){return valid(o,l)?o[l]:o.nl;}
 function txLang(o,l){return valid(o,l)?l:'nl';}
 function allTexts(){const a=[];for(const[k,o]of Object.entries(S.ui))a.push(o);
- for(const q of S.questions){a.push(q.t);(q.rows||[]).forEach(r=>a.push(r.t));if(q.low)a.push(q.low);if(q.high)a.push(q.high);}
+ for(const q of S.questions){a.push(q.t);(q.rows||[]).forEach(r=>{a.push(r.t);if(r.followup&&r.followup.t)a.push(r.followup.t);});if(q.low)a.push(q.low);if(q.high)a.push(q.high);}
  const used=new Set();for(const sc of Object.values(S.scales))sc.o.forEach(id=>used.add(id));used.forEach(id=>S.options[id]&&a.push(S.options[id].t));return a;}
 const vName=c=>(S.vestigingen.find(v=>v.c===c)||{n:c}).n;
 const slug=s=>String(s).trim().replace(/\s+/g,'-');
@@ -65,3 +66,27 @@ function play(o,l,btn){
  const u=new SpeechSynthesisUtterance(text);u.voice=v;u.lang=v.lang;u.rate=.9;u.onend=done;u.onerror=done;speechSynthesis.speak(u);
 }
 function sayBtn(o,l,cls){const b=h('button',{class:'say '+(cls||''),type:'button','aria-label':'Luister',html:SPK});b.addEventListener('click',e=>{e.stopPropagation();play(o,l,b);});return b;}
+
+/* Aanvullingen in een bestaande vragenlijst zetten (elke stap één keer):
+   v2: toelichting bij 'Het lokaal' en 'Het lesmateriaal', extra vraag bij 'Aantal cursisten in de klas'
+   v3: extra vraag bij 'Aantal lesuren per week' (meer/minder uren)
+   v4: knop 'Klaar' en melding 'al ingevuld' */
+function migrateConfig(){
+ const d=defaultState(),v=S._versie||0;
+ const q2=S.questions.find(q=>q.id==='q2'),dq2=d.questions.find(q=>q.id==='q2');
+ const addOpt=ks=>ks.forEach(k=>{if(!S.options[k])S.options[k]=d.options[k];});
+ if(v<2){
+  ['toelichting','andersToel'].forEach(k=>{if(!S.ui[k])S.ui[k]=d.ui[k];});
+  addOpt(['tveel','tweinig','pveel','pweinig','anders']);
+  if(!S.scales.klasreden)S.scales.klasreden=d.scales.klasreden;
+  if(q2&&q2.rows){['r1','r2'].forEach(id=>{const r=q2.rows.find(x=>x.id===id);if(r&&r.comment==null)r.comment=true;});
+   const r3=q2.rows.find(x=>x.id==='r3');if(r3&&!r3.followup)r3.followup=dq2.rows.find(x=>x.id==='r3').followup;}
+ }
+ if(v<3){
+  addOpt(['meeruren','minderuren']);
+  if(!S.scales.urenwens)S.scales.urenwens=d.scales.urenwens;
+  const r4=q2&&q2.rows&&q2.rows.find(x=>x.id==='r4');if(r4&&!r4.followup)r4.followup=dq2.rows.find(x=>x.id==='r4').followup;
+ }
+ if(v<4){['klaarKnop','alIngevuld'].forEach(k=>{if(!S.ui[k])S.ui[k]=d.ui[k];});}
+ S._versie=5;
+}

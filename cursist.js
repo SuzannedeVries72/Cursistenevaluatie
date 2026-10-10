@@ -7,7 +7,11 @@ const DRAFT_KEY=()=>'eval-concept|'+CTX.v+'|'+CTX.gSlug;
 const C={lang:'nl',step:0,ans:{},auto:false,sheet:false,sending:false};
 const LANGWORD={nl:'Taal',en:'Language',ar:'اللغة',fa:'زبان',ti:'ቋንቋ',uk:'Мова',tr:'Dil',so:'Luqad'};
 
-function steps(){const s=[{k:'welkom'}];S.questions.forEach(q=>{if(q.type==='matrix')(q.rows||[]).forEach(r=>s.push({k:'q',q,r,key:q.id+'.'+r.id}));else s.push({k:'q',q,key:q.id});});s.push({k:'klaar'});return s;}
+function steps(){const s=[{k:'welkom'}];S.questions.forEach(q=>{
+ if(q.type==='matrix')(q.rows||[]).forEach(r=>{const key=q.id+'.'+r.id;s.push({k:'q',q,r,key});
+  // extra vraag (b) alleen als het gekozen antwoord daarom vraagt
+  if(r.followup&&(r.followup.when||[]).includes(C.ans[key]))s.push({k:'q',q,r,fu:r.followup,key:key+'.b',base:key});});
+ else s.push({k:'q',q,key:q.id});});s.push({k:'klaar'});return s;}
 function saveDraft(){store.set(DRAFT_KEY(),{lang:C.lang,step:C.step,ans:C.ans,auto:C.auto});}
 
 function renderPhone(noAuto){
@@ -29,15 +33,25 @@ function renderPhone(noAuto){
   body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:15px;font-weight:400;margin:0;color:var(--muted)'},tx(S.ui.taalHint,C.lang)),sayBtn(S.ui.taalHint,C.lang,'sm')));
   const sbtn=h('button',{class:'btn primary',type:'button'},tx(S.ui.start,C.lang));sbtn.onclick=()=>{C.step=1;saveDraft();renderPhone();};nav.append(sbtn);
  } else if(cur.k==='klaar'){
-  main=S.ui.bedanktTitel;
-  body.append(h('div',{class:'thanks'},h('div',{class:'big'},'🎉'),h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.bedanktTitel,C.lang)),sayBtn(S.ui.bedanktTitel,C.lang)),h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:17px;font-weight:400;margin:0'},tx(S.ui.bedanktTekst,C.lang)),sayBtn(S.ui.bedanktTekst,C.lang,'sm'))));
-  const again=h('button',{class:'btn',type:'button'},'↺');again.setAttribute('aria-label','Opnieuw invullen (ander persoon op deze telefoon)');again.title='Opnieuw invullen (ander persoon op deze telefoon)';
-  again.onclick=()=>{C.step=0;C.ans={};saveDraft();renderPhone();};nav.append(again);
+  // na versturen: bedankt + knop Klaar. Opnieuw invullen kan niet meer op dit toestel.
+  const al=C.alIngevuld,af=C.afgerond;
+  main=al?S.ui.alIngevuld:S.ui.bedanktTitel;
+  const blok=h('div',{class:'thanks'},h('div',{class:'big'},af||al?'✅':'🎉'));
+  if(al)blok.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.alIngevuld,C.lang)),sayBtn(S.ui.alIngevuld,C.lang)));
+  else blok.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.bedanktTitel,C.lang)),sayBtn(S.ui.bedanktTitel,C.lang)));
+  if(!al||af)blok.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:17px;font-weight:400;margin:0'},tx(S.ui.bedanktTekst,C.lang)),sayBtn(S.ui.bedanktTekst,C.lang,'sm')));
+  body.append(blok);
+  if(!af&&!al){const k=h('button',{class:'btn primary',type:'button'},tx(S.ui.klaarKnop,C.lang));
+   k.onclick=()=>{C.afgerond=true;stopAudio();try{window.close();}catch(e){}renderPhone(true);};nav.append(k);}
+  else nav.hidden=true;
  } else {
   const n=C.step,t=st.length-2,q=cur.q;
   body.append(h('div',{class:'progress',role:'progressbar','aria-valuenow':n,'aria-valuemin':1,'aria-valuemax':t},h('i',{style:`width:${Math.round(n/t*100)}%`})));
   body.append(h('div',{class:'stepof'},tx(S.ui.vraagVan,C.lang).replace('{n}',n).replace('{t}',t)));
-  if(cur.r){body.append(h('div',{class:'qtext parent'},h('div',{class:'t'},tx(q.t,C.lang)),sayBtn(q.t,C.lang,'sm')));
+  if(cur.fu){body.append(h('div',{class:'qtext parent'},h('div',{class:'t'},tx(cur.r.t,C.lang)),sayBtn(cur.r.t,C.lang,'sm')));
+   const pa=C.ans[cur.base];if(pa&&S.options[pa])body.append(h('div',{class:'yours'},h('span',null,tx(S.ui.jijKoos,C.lang)),h('b',null,tx(S.options[pa].t,C.lang))));
+   body.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(cur.fu.t,C.lang)),sayBtn(cur.fu.t,C.lang)));main=cur.fu.t;}
+  else if(cur.r){body.append(h('div',{class:'qtext parent'},h('div',{class:'t'},tx(q.t,C.lang)),sayBtn(q.t,C.lang,'sm')));
    body.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(cur.r.t,C.lang)),sayBtn(cur.r.t,C.lang)));main=cur.r.t;}
   else{const qi=S.questions.indexOf(q),par=q.sub&&qi>0?S.questions[qi-1]:null;
    if(par&&par.type!=='matrix'){body.append(h('div',{class:'qtext parent'},h('div',{class:'t'},tx(par.t,C.lang)),sayBtn(par.t,C.lang,'sm')));
@@ -47,11 +61,17 @@ function renderPhone(noAuto){
   const a=C.ans[cur.key];
   if(q.type==='choice'||q.type==='matrix'){
    const box=h('div',{class:'opts',role:'radiogroup'});
-   (S.scales[q.scale]?.o||[]).forEach(oid=>{const op=S.options[oid];if(!op)return;
+   (S.scales[cur.fu?cur.fu.scale:q.scale]?.o||[]).forEach(oid=>{const op=S.options[oid];if(!op)return;
     const b=h('button',{class:'choice',type:'button',role:'radio','aria-pressed':a===oid?'true':'false','aria-checked':a===oid?'true':'false'},op.e?h('span',{class:'em'},op.e):null,h('span',null,tx(op.t,C.lang)));
     b.onclick=()=>{C.ans[cur.key]=oid;saveDraft();renderPhone(true);};
     box.append(h('div',{class:'opt'},b,sayBtn(op.t,C.lang,'sm')));});
    body.append(box);
+   // "Anders" gekozen bij de extra vraag: vrij tekstvak
+   if(cur.fu&&cur.fu.other&&a===cur.fu.other){const k2=cur.key+'.anders';const ta=h('textarea',{class:'answer',maxlength:'500',rows:'3',style:'min-height:90px',placeholder:tx(S.ui.typHier,C.lang),dir:'auto','aria-label':tx(S.ui.andersToel,C.lang)});ta.value=C.ans[k2]||'';ta.oninput=()=>{C.ans[k2]=ta.value;saveDraft();};
+    body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:16px;margin:0'},tx(S.ui.andersToel,C.lang)),sayBtn(S.ui.andersToel,C.lang,'sm')),ta);}
+   // ruimte voor een korte toelichting bij deze stelling
+   if(cur.r&&cur.r.comment&&!cur.fu){const k2=cur.key+'.toel';const ta=h('textarea',{class:'answer',maxlength:'500',rows:'3',style:'min-height:90px',placeholder:tx(S.ui.typHier,C.lang),dir:'auto','aria-label':tx(S.ui.toelichting,C.lang)});ta.value=C.ans[k2]||'';ta.oninput=()=>{C.ans[k2]=ta.value;saveDraft();};
+    body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:16px;margin:0'},tx(S.ui.toelichting,C.lang)),sayBtn(S.ui.toelichting,C.lang,'sm')),ta);}
   } else if(q.type==='stars'){
    const row=h('div',{class:'stars',dir:'ltr'});
    for(let i=1;i<=5;i++){const b=h('button',{class:'star'+(a>=i?' on':''),type:'button','aria-label':i+' / 5',html:STAR});b.onclick=()=>{C.ans[cur.key]=i;saveDraft();renderPhone(true);};row.append(b);}
@@ -64,7 +84,8 @@ function renderPhone(noAuto){
   const back=h('button',{class:'btn',type:'button'},tx(S.ui.terug,C.lang));back.onclick=()=>{C.step--;saveDraft();renderPhone();};
   const last=C.step===st.length-2;
   const next=h('button',{class:'btn primary',type:'button'},C.sending?'…':tx(last?S.ui.versturen:S.ui.volgende,C.lang));
-  const upd=()=>{const v=C.ans[cur.key];next.disabled=C.sending||(q.req&&(v==null||v===''));};upd();
+  const req=cur.fu?cur.fu.req!==false:q.req;
+  const upd=()=>{const v=C.ans[cur.key];next.disabled=C.sending||(req&&(v==null||v===''));};upd();
   next.onclick=async()=>{if(last){if(!(await submit()))return;}C.step++;saveDraft();renderPhone();window.scrollTo(0,0);};
   nav.append(back,next);
  }
@@ -83,6 +104,10 @@ function renderPhone(noAuto){
 
 async function submit(){
  if(C.sending)return false;C.sending=true;renderPhone(true);
+ // antwoorden op extra vragen weghalen als die niet (meer) van toepassing zijn
+ S.questions.forEach(q=>(q.rows||[]).forEach(r=>{if(!r.followup)return;const k=q.id+'.'+r.id;
+  if(!(r.followup.when||[]).includes(C.ans[k])){delete C.ans[k+'.b'];delete C.ans[k+'.b.anders'];}
+  else if(C.ans[k+'.b']!==r.followup.other)delete C.ans[k+'.b.anders'];}));
  const antwoorden={};for(const[k,v]of Object.entries(C.ans)){if(v!==''&&v!=null)antwoorden[k]=typeof v==='string'?v.slice(0,2000):v;}
  const {error}=await sb.from('responses').insert({vestiging:CTX.v,groep:CTX.g,taal:C.lang,antwoorden});
  C.sending=false;
@@ -98,6 +123,6 @@ function fatal(msg){$('#phone').innerHTML='';$('#phone').append(h('div',{class:'
  if(!v||!g){fatal('Deze link is niet compleet of niet meer geldig.');return;}
  CTX.g=g;document.title='Evaluatie · '+v.n;
  const d=store.get(DRAFT_KEY());if(d){C.lang=S.langs.some(l=>l.c===d.lang)?d.lang:'nl';C.ans=d.ans||{};C.auto=!!d.auto;C.step=Math.min(d.step||0,steps().length-1);}
- if(store.get(DONE_KEY())&&!Object.keys(C.ans).length)C.step=steps().length-1;
+ if(store.get(DONE_KEY())){C.alIngevuld=true;C.ans={};C.step=steps().length-1;}
  renderPhone(true);loadAudio(C.lang).then(()=>{});
 })();

@@ -8,7 +8,7 @@ function palette(sk,n){
  const P2={f:'var(--c-pos2)',k:'var(--on-strong)'},P1={f:'var(--c-pos1)',k:'var(--ink)'},M={f:'var(--c-mid)',k:'var(--ink)'},N1={f:'var(--c-neg1)',k:'var(--ink)'},N2={f:'var(--c-neg2)',k:'var(--on-strong)'};
  if(sk==='uren6')return[1,2,3,4,5,6].map(i=>({f:`var(--s${i})`,k:i>=4?'var(--on-strong)':'var(--ink)'}));
  if(sk==='jnw')return[P2,N2,M];
- if(sk==='genoeg3')return[P2,N2,M];
+ if(sk==='genoeg3')return[M,P2,N2]; // ja = precies goed (midden), meer / minder
  if(n===2)return[P2,N2];if(n===3)return[P2,M,N2];if(n===4)return[P2,P1,N1,N2];if(n===5)return[P2,P1,M,N1,N2];
  return Array.from({length:n},(_,i)=>i<n/2-.5?P2:i>n/2-.5?N2:M);
 }
@@ -92,7 +92,7 @@ function renderResults(){
  const D=filtered();const k=$('#rsKpis');k.innerHTML='';
  const q4=D.map(d=>d.ans.q4).filter(Number);const lc={};D.forEach(d=>lc[d.lang]=(lc[d.lang]||0)+1);const topL=Object.entries(lc).sort((a,b)=>b[1]-a[1])[0];
  k.append(h('div',{class:'kpi'},h('b',null,D.length),h('span',null,'reacties')),h('div',{class:'kpi'},h('b',null,new Set(D.map(d=>d.v+'|'+d.g)).size),h('span',null,'groepen')),
-  h('div',{class:'kpi'},h('b',null,q4.length?(q4.reduce((a,b)=>a+b,0)/q4.length).toFixed(1).replace('.',','):'–'),h('span',null,'gem. sterren docent (vraag 4)')),
+  h('div',{class:'kpi'},h('b',null,q4.length?(q4.reduce((a,b)=>a+b,0)/q4.length).toFixed(1).replace('.',','):'–'),h('span',null,'gem. sterren docent (vraag '+(S.questions.findIndex(q=>q.id==='q4')>=0?qNum(S.questions.findIndex(q=>q.id==='q4')):'–')+')')),
   h('div',{class:'kpi'},h('b',null,topL?L(topL[0]).n:'–'),h('span',null,'meest gekozen taal'+(topL?' ('+Math.round(topL[1]/D.length*100)+'%)':''))));
  const grid=$('#rsGrid');grid.innerHTML='';
  if(!D.length){grid.append(h('div',{class:'rcard',style:'grid-column:1/-1'},h('b',null,'Nog geen reacties in deze selectie')));return;}
@@ -122,7 +122,8 @@ function renderResults(){
   else{const items=D.filter(d=>d.ans[q.id]);card.style.gridColumn='1/-1';
    const list=h('div',{class:'open-list'});items.forEach(d=>list.append(h('div',{dir:'auto'},d.ans[q.id],h('small',{dir:'ltr'},vName(d.v)+' · '+d.g+' · '+L(d.lang).n+(d.lang!=='nl'?' · in productie automatisch vertaald':'')))));
    card.append(h('p',{class:'csub'},items.length+' van de '+D.length+' cursisten schreven iets.'),items.length?list:h('div',{class:'note'},'Nog geen antwoorden'));}
-  grid.append(card);});
+  grid.append(card);
+  if(q.type==='matrix')extraCards(q,i,D,grid);});
 }
 /* tooltip */
 const TIP=h('div',{class:'tip',role:'tooltip'});TIP.hidden=true;document.body.append(TIP);
@@ -130,3 +131,25 @@ function showTip(el,x,y){TIP.textContent=el.getAttribute('data-tip');TIP.hidden=
 document.addEventListener('pointermove',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(el)showTip(el,e.clientX,e.clientY);else TIP.hidden=true;});
 document.addEventListener('focusin',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(el){const r=el.getBoundingClientRect();showTip(el,r.left+r.width/2,r.top);}});
 document.addEventListener('focusout',()=>TIP.hidden=true);
+
+/* Extra kaarten bij stellingen: vervolgvraag (b) en toelichtingen */
+function extraCards(q,i,D,grid){
+ (q.rows||[]).forEach(r=>{
+  const key=q.id+'.'+r.id;
+  if(r.followup){const fu=r.followup,sc=S.scales[fu.scale];if(!sc)return;
+   const card=h('div',{class:'rcard'});card.append(h('h3',null,qNum(i)+'b. '+r.t.nl+': '+fu.t.nl),h('p',{class:'csub'},'Alleen gevraagd bij: '+(fu.when||[]).map(optLbl).join(' of ').toLowerCase()+'.'));
+   const vals=D.map(d=>d.ans[key+'.b']).filter(Boolean);
+   if(!vals.length)card.append(h('div',{class:'note'},'Nog geen antwoorden'));
+   else{card.append(chartRanked(sc.o.map(o=>({lbl:optLbl(o),v:vals.filter(x=>x===o).length})).sort((a,b)=>b.v-a.v),' keer'));
+    const other=D.filter(d=>d.ans[key+'.b.anders']);
+    if(other.length){const l=h('div',{class:'open-list'});other.forEach(d=>l.append(h('div',{dir:'auto'},d.ans[key+'.b.anders'],h('small',{dir:'ltr'},vName(d.v)+' · '+d.g+' · '+L(d.lang).n))));card.append(h('b',{style:'font-size:13px'},'Anders, namelijk:'),l);}}
+   grid.append(card);}
+ });
+ const rowsC=(q.rows||[]).filter(r=>r.comment);
+ if(rowsC.length){const card=h('div',{class:'rcard',style:'grid-column:1/-1'});card.append(h('h3',null,'Toelichtingen bij vraag '+qNum(i)));
+  let n=0;rowsC.forEach(r=>{const items=D.filter(d=>d.ans[q.id+'.'+r.id+'.toel']);if(!items.length)return;n+=items.length;
+   const l=h('div',{class:'open-list'});items.forEach(d=>{const a=d.ans[q.id+'.'+r.id];l.append(h('div',{dir:'auto'},d.ans[q.id+'.'+r.id+'.toel'],h('small',{dir:'ltr'},(a&&S.options[a]?S.options[a].t.nl+' · ':'')+vName(d.v)+' · '+d.g+' · '+L(d.lang).n)));});
+   card.append(h('b',{style:'font-size:14px'},r.t.nl+' ('+items.length+')'),l);});
+  if(!n)card.append(h('div',{class:'note'},'Nog geen toelichtingen'));
+  grid.append(card);}
+}

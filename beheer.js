@@ -144,7 +144,19 @@ function renderEditor(){
   const del=h('button',{class:'btn small',type:'button'},'Verwijder');del.onclick=()=>{if(del.dataset.sure){S.questions.splice(i,1);save();renderEditor();}else{del.dataset.sure='1';del.textContent='Zeker? Klik nog eens';}};
   card.append(h('div',{class:'qhead'},h('span',{class:'qnum'},qNum(i)),typ,sc,h('label',{class:'chk'},req,'verplicht'),h('label',{class:'chk',title:'Toont de vorige vraag en het antwoord erboven'},sub,'subvraag van vorige'),h('span',{class:'sp'}),up,dn,del));
   card.append(textField(q.t,'Vraag'));
-  if(q.type==='matrix'){const rows=h('div',{class:'rows'});(q.rows||[]).forEach((r,ri)=>{const x=h('button',{class:'btn small',type:'button','aria-label':'Stelling verwijderen'},'✕');x.onclick=()=>{q.rows.splice(ri,1);save();renderEditor();};rows.append(h('div',{class:'rowline'},textField(r.t,'Stelling '+(ri+1)),x));});
+  if(q.type==='matrix'){const rows=h('div',{class:'rows'});(q.rows||[]).forEach((r,ri)=>{const x=h('button',{class:'btn small',type:'button','aria-label':'Stelling verwijderen'},'✕');x.onclick=()=>{q.rows.splice(ri,1);save();renderEditor();};const box=h('div',{class:'tf'},textField(r.t,'Stelling '+(ri+1)));
+   const cm=h('input',{type:'checkbox'});cm.checked=!!r.comment;cm.onchange=()=>{r.comment=cm.checked;save();};
+   const fuOn=h('input',{type:'checkbox'});fuOn.checked=!!r.followup;
+   fuOn.onchange=()=>{if(fuOn.checked){const t=E();t.nl='Wat is de reden?';r.followup={when:[],scale:Object.keys(S.scales)[0],other:null,req:true,t};}else delete r.followup;save();renderEditor();};
+   box.append(h('div',{class:'qhead'},h('label',{class:'chk'},cm,'ruimte voor korte toelichting'),h('label',{class:'chk'},fuOn,'extra vraag (b) bij bepaalde antwoorden')));
+   if(r.followup){const fu=r.followup;const fb=h('div',{class:'tf-detail'});
+    fb.append(h('b',{style:'font-size:13px'},'Extra vraag (b) tonen bij:'),h('div',{class:'qhead'},(S.scales[q.scale]?.o||[]).map(o=>{const c=h('input',{type:'checkbox'});c.checked=(fu.when||[]).includes(o);c.onchange=()=>{fu.when=(S.scales[q.scale].o).filter(x=>x===o?c.checked:(fu.when||[]).includes(x));save();};return h('label',{class:'chk'},c,optLbl(o));})));
+    fb.append(textField(fu.t,'Vraag b'));
+    const fs=h('select',{class:'input',style:'max-width:280px','aria-label':'Antwoordschaal vraag b'});Object.entries(S.scales).forEach(([k,v])=>fs.append(h('option',{value:k},v.n)));fs.value=fu.scale;fs.onchange=()=>{fu.scale=fs.value;save();renderEditor();};
+    const fo=h('select',{class:'input',style:'max-width:220px','aria-label':'Optie met tekstvak'});fo.append(h('option',{value:''},'– geen –'));(S.scales[fu.scale]?.o||[]).forEach(o=>fo.append(h('option',{value:o},optLbl(o))));fo.value=fu.other||'';fo.onchange=()=>{fu.other=fo.value||null;save();};
+    fb.append(h('div',{class:'qhead'},h('span',{class:'note'},'Antwoorden:'),fs,h('span',{class:'note'},'Tekstvak bij:'),fo));
+    box.append(fb);}
+   rows.append(h('div',{class:'rowline'},box,x));});
    const add=h('button',{class:'btn small',type:'button'},'+ Stelling toevoegen');add.onclick=()=>{const t=E();t.nl='Nieuwe stelling';q.rows.push({id:'r'+Date.now().toString(36),t});save();renderEditor();};rows.append(h('div',null,add));card.append(rows);}
   if(q.type==='stars'){card.append(h('div',{class:'rows'},textField(q.low,'Label bij 1 ster'),textField(q.high,'Label bij 5 sterren')));}
   ed.append(card);
@@ -163,7 +175,7 @@ function renderEditor(){
  const addS=h('button',{class:'btn',type:'button'},'+ Antwoordschaal toevoegen');addS.onclick=()=>{const k='s'+Date.now().toString(36);S.scales[k]={n:'Nieuwe schaal',o:[]};save();renderEditor();};ed.append(addS);
 
  ed.append(h('div',{class:'ed-sec'},h('h2',null,'Vaste teksten'),h('span',{class:'note'},'Welkom, knoppen en bedankt.')));
- const uic=h('div',{class:'qcard'});const UIL={welkomTitel:'Welkom – titel',welkomTekst:'Welkom – tekst',taalHint:'Uitleg taalknop',jijKoos:'Subvraag – eerder antwoord',start:'Knop start',volgende:'Knop volgende',terug:'Knop terug',versturen:'Knop versturen',vraagVan:'Voortgang ({n} en {t} laten staan)',typHier:'Open vraag – invulhulp',eigenTaal:'Open vraag – eigen taal',bedanktTitel:'Bedankt – titel',bedanktTekst:'Bedankt – tekst'};
+ const uic=h('div',{class:'qcard'});const UIL={toelichting:'Stelling – vraag om toelichting',andersToel:'Vraag b – "anders" toelichten',welkomTitel:'Welkom – titel',welkomTekst:'Welkom – tekst',taalHint:'Uitleg taalknop',jijKoos:'Subvraag – eerder antwoord',start:'Knop start',volgende:'Knop volgende',terug:'Knop terug',versturen:'Knop versturen',vraagVan:'Voortgang ({n} en {t} laten staan)',typHier:'Open vraag – invulhulp',eigenTaal:'Open vraag – eigen taal',bedanktTitel:'Bedankt – titel',bedanktTekst:'Bedankt – tekst'};
  Object.entries(S.ui).forEach(([k,o])=>uic.append(textField(o,UIL[k]||k)));ed.append(uic);
 
  ed.append(h('div',{class:'ed-sec'},h('h2',null,'Talen'),h('span',{class:'note'},'Nieuwe taal toevoegen: daarna “Vertaal gewijzigde teksten”.')));
@@ -281,7 +293,9 @@ function filtered(){const v=$('#rsV').value,g=$('#rsG').value,f=$('#rsFrom').val
 ['#rsV','#rsG','#rsFrom','#rsTo'].forEach(s=>$(s).addEventListener('change',renderResults));
 $('#rsReload').onclick=loadResults;
 
-function colsDef(){const c=[];S.questions.forEach((q,i)=>{if(q.type==='matrix')(q.rows||[]).forEach(r=>c.push({key:q.id+'.'+r.id,h:`${qNum(i)}. ${q.t.nl} ${r.t.nl}`,q}));else c.push({key:q.id,h:`${qNum(i)}. ${q.t.nl}`,q});});return c;}
+function colsDef(){const c=[];S.questions.forEach((q,i)=>{if(q.type==='matrix')(q.rows||[]).forEach(r=>{const k=q.id+'.'+r.id;c.push({key:k,h:`${qNum(i)}. ${q.t.nl} ${r.t.nl}`,q});
+   if(r.comment)c.push({key:k+'.toel',h:`${qNum(i)}. ${r.t.nl} – toelichting`,q:{type:'open'}});
+   if(r.followup){c.push({key:k+'.b',h:`${qNum(i)}b. ${r.t.nl} – ${r.followup.t.nl}`,q:{type:'choice'}});if(r.followup.other)c.push({key:k+'.b.anders',h:`${qNum(i)}b. ${r.t.nl} – anders, namelijk`,q:{type:'open'}});}});else c.push({key:q.id,h:`${qNum(i)}. ${q.t.nl}`,q});});return c;}
 function rowOf(d,cols){const dt=new Date(d.ts);const o={'Datum':dt.toLocaleDateString('nl-NL'),'Tijd':dt.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}),'Vestiging':vName(d.v),'Groep':d.g,'Taal':L(d.lang).n};
  cols.forEach(c=>{const a=d.ans[c.key];o[c.h]=a==null?'':c.q.type==='stars'?a:c.q.type==='open'?a:(S.options[a]?S.options[a].t.nl:a);});return o;}
 $('#rsExport').onclick=()=>{
@@ -309,7 +323,8 @@ function overzicht(all){
   rows.push(['','Aantal antwoorden',tot.length,'',...per.flatMap(p=>[p.length,''])]);rows.push([]);};
  S.questions.forEach((q,i)=>{
   if(q.type==='choice'||q.type==='matrix'){const sc=S.scales[q.scale];if(!sc)return;const lbl=sc.o.map(o=>S.options[o]?S.options[o].t.nl:o);
-   if(q.type==='matrix')(q.rows||[]).forEach(r=>block(`${qNum(i)}. ${q.t.nl} ${r.t.nl}`,q.id+'.'+r.id,sc.o,lbl));else block(`${qNum(i)}. ${q.t.nl}`,q.id,sc.o,lbl);}
+   if(q.type==='matrix')(q.rows||[]).forEach(r=>{block(`${qNum(i)}. ${q.t.nl} ${r.t.nl}`,q.id+'.'+r.id,sc.o,lbl);
+    if(r.followup&&S.scales[r.followup.scale]){const fo=S.scales[r.followup.scale].o;block(`${qNum(i)}b. ${r.t.nl} – ${r.followup.t.nl}`,q.id+'.'+r.id+'.b',fo,fo.map(o=>S.options[o]?S.options[o].t.nl:o));}});else block(`${qNum(i)}. ${q.t.nl}`,q.id,sc.o,lbl);}
   else if(q.type==='stars')block(`${qNum(i)}. ${q.t.nl}`,q.id,[1,2,3,4,5],['1 ster ('+q.low.nl+')','2 sterren','3 sterren','4 sterren','5 sterren ('+q.high.nl+')']);
  });
  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:60},{wch:26},{wch:12},{wch:9},...vs.flatMap(()=>[{wch:12},{wch:9}])];return ws;}
