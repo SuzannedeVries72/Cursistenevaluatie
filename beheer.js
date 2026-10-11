@@ -161,7 +161,33 @@ function bulkAudioPanel(){
   log.textContent=`Klaar: ${ok} opname(s) gekoppeld.`+(skip.length?`\nOvergeslagen (${skip.length}):\n`+skip.join('\n'):'')+(fail.length?`\nMislukt (${fail.length}):\n`+fail.join('\n'):'');
   toast(ok+' opname(s) gekoppeld');fi.value='';
  };
+ // alle opnames van één taal verwijderen
+ const sel=h('select',{class:'input',style:'width:auto','aria-label':'Taal'});S.langs.forEach(l=>sel.append(h('option',{value:l.c},l.n)));
+ const delAll=h('button',{class:'btn danger',type:'button'},'Alle opnames van deze taal verwijderen');
+ sel.onchange=()=>{delete delAll.dataset.sure;delAll.textContent='Alle opnames van deze taal verwijderen';};
+ delAll.onclick=async()=>{
+  const l=sel.value;const {data,error}=await sb.from('audio').select('lang,text_hash,path').eq('lang',l);
+  if(error){toast('Lukte niet: '+error.message);return;}
+  if(!data.length){log.textContent='Er zijn geen eigen opnames voor '+L(l).n+'.';return;}
+  if(!delAll.dataset.sure){delAll.dataset.sure='1';delAll.textContent=`Zeker? ${data.length} opname(s) van ${L(l).n} verwijderen`;return;}
+  delAll.disabled=true;const n=await deleteAudioRows(data);delAll.disabled=false;delete delAll.dataset.sure;delAll.textContent='Alle opnames van deze taal verwijderen';
+  log.textContent=`${n} opname(s) van ${L(l).n} verwijderd. Deze taal gebruikt nu weer de stem van het toestel.`;toast(n+' opname(s) verwijderd');
+ };
+ box.append(h('div',{style:'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px'},sel,delAll));
  return box;
+}
+/* Opname verwijderen: bestand uit de opslag en de koppeling uit de tabel. Daarna leest de app weer met de stem van het toestel voor. */
+async function deleteAudioRows(rows){
+ const paths=rows.map(r=>r.path).filter(Boolean);
+ if(paths.length){const rm=await sb.storage.from('audio').remove(paths);if(rm.error){toast('Verwijderen lukte niet: '+rm.error.message);return 0;}}
+ let n=0;for(const r of rows){const {error}=await sb.from('audio').delete().eq('lang',r.lang).eq('text_hash',r.text_hash);if(error){toast('Verwijderen lukte niet: '+error.message);continue;}AUD.delete(r.lang+'|'+r.text_hash);n++;}
+ return n;
+}
+async function deleteAudio(o,l){
+ const hash=textHash(textOf(o,l)||'');
+ const {data,error}=await sb.from('audio').select('lang,text_hash,path').eq('lang',l).eq('text_hash',hash);
+ if(error){toast('Verwijderen lukte niet: '+error.message);return false;}
+ return (await deleteAudioRows(data||[]))>0;
 }
 function textField(o,label,opts={}){
  const id='tf'+(++uid);
@@ -182,7 +208,10 @@ function textField(o,label,opts={}){
   fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(f.size>5*1024*1024){toast('Bestand is te groot (max. 5 MB).');return;}if(await uploadAudio(o,l.c,f)){toast('Opname opgeslagen bij deze '+L(l.c).n+'e tekst');drawDetail();}};
   const hasRec=AUD.has(audioKey(o,l.c));const hasVoice=!!voiceFor(l.c);
   const au=h('span',{class:'chip '+(hasRec?'ok':hasVoice?'concept':'leeg'),title:'Welke audio de cursist hoort (stem: afhankelijk van het toestel van de cursist)'},hasRec?'eigen opname':hasVoice?'stem toestel':'geen opname');
-  detail.append(h('div',{class:'trow'},h('span',{class:'ln',dir:l.dir},l.n),ti,h('div',{class:'meta'},chipEl,au,sayBtn(o,l.c,'sm'),h('label',{class:'up'},hasRec?'Opname vervangen':'Opname uploaden',fi),isNl?null:h('label',{class:'chk'},ck,'gecontroleerd'))));
+  let del=null;
+  if(hasRec){del=h('button',{class:'btn small danger',type:'button',title:'Eigen opname verwijderen; daarna leest de stem van het toestel voor'},'Opname verwijderen');
+   del.onclick=async()=>{if(!del.dataset.sure){del.dataset.sure='1';del.textContent='Zeker? Klik nog eens';return;}del.disabled=true;if(await deleteAudio(o,l.c)){toast('Opname verwijderd');drawDetail();}else del.disabled=false;};}
+  detail.append(h('div',{class:'trow'},h('span',{class:'ln',dir:l.dir},l.n),ti,h('div',{class:'meta'},chipEl,au,sayBtn(o,l.c,'sm'),h('label',{class:'up'},hasRec?'Opname vervangen':'Opname uploaden',fi),del,isNl?null:h('label',{class:'chk'},ck,'gecontroleerd'))));
  });}
  inp.oninput=()=>{o.nl=inp.value;drawChips();if(!detail.hidden)drawDetail();save();refreshStats();};
  drawChips();if(!detail.hidden)drawDetail();
