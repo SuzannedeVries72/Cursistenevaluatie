@@ -71,6 +71,16 @@ function sayBtn(o,l,cls){const b=h('button',{class:'say '+(cls||''),type:'button
    v2: toelichting bij 'Het lokaal' en 'Het lesmateriaal', extra vraag bij 'Aantal cursisten in de klas'
    v3: extra vraag bij 'Aantal lesuren per week' (meer/minder uren)
    v4: knop 'Klaar' en melding 'al ingevuld' */
+/* 11-10: Oekraïens (uk) vervangen door Russisch (ru). Russische tekst uit de standaardlijst als de Nederlandse tekst gelijk is; anders leeg. */
+function ukNaarRu(d){
+ const ru={};(function w(o){if(!o||typeof o!=='object')return;if(typeof o.nl==='string'&&'ru' in o){ru[o.nl]=o.ru;return;}for(const k in o)w(o[k]);})(d);
+ const i=S.langs.findIndex(l=>l.c==='uk');const dl=d.langs.find(l=>l.c==='ru');
+ if(i>=0)S.langs[i]=dl;else if(!S.langs.some(l=>l.c==='ru'))S.langs.push(dl);
+ (function w(o){if(!o||typeof o!=='object')return;if(typeof o.nl==='string'){
+   if('uk' in o||!('ru' in o)){delete o.uk;o._src=o._src||{};o._chk=o._chk||{};delete o._src.uk;delete o._chk.uk;
+    o.ru=ru[o.nl]||'';o._src.ru=o.nl;o._chk.ru=false;}return;}
+  for(const k in o)w(o[k]);})(S);
+}
 function migrateConfig(){
  const d=defaultState(),v=S._versie||0;
  const q2=S.questions.find(q=>q.id==='q2'),dq2=d.questions.find(q=>q.id==='q2');
@@ -88,5 +98,7 @@ function migrateConfig(){
   const r4=q2&&q2.rows&&q2.rows.find(x=>x.id==='r4');if(r4&&!r4.followup)r4.followup=dq2.rows.find(x=>x.id==='r4').followup;
  }
  if(v<4){['klaarKnop','alIngevuld'].forEach(k=>{if(!S.ui[k])S.ui[k]=d.ui[k];});}
- S._versie=5;
+ if(v<6){S.ui.taalHint=d.ui.taalHint;}   // taalkeuze op het welkomstscherm
+ if(v<7)ukNaarRu(d);
+ S._versie=7;
 }

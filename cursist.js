@@ -2,10 +2,13 @@
 /* Cursistweergave: leest vestiging (v) en groep (g) uit de link, toont de vragenlijst en slaat het antwoord op in Supabase. */
 const params=new URLSearchParams(location.search);
 const CTX={v:(params.get('v')||'').toUpperCase(),gSlug:params.get('g')||'',g:''};
-const DONE_KEY=()=>'eval-klaar|'+CTX.v+'|'+CTX.gSlug;
-const DRAFT_KEY=()=>'eval-concept|'+CTX.v+'|'+CTX.gSlug;
+// Voorbeeldmodus (docent via "Bekijk als cursist"): antwoorden worden niet opgeslagen en tellen niet mee
+const VOORBEELD=params.get('voorbeeld')==='1';
+const PRE=VOORBEELD?'voorbeeld|':'';
+const DONE_KEY=()=>PRE+'eval-klaar|'+CTX.v+'|'+CTX.gSlug;
+const DRAFT_KEY=()=>PRE+'eval-concept|'+CTX.v+'|'+CTX.gSlug;
 const C={lang:'nl',step:0,ans:{},auto:false,sheet:false,sending:false};
-const LANGWORD={nl:'Taal',en:'Language',ar:'اللغة',fa:'زبان',ti:'ቋንቋ',uk:'Мова',tr:'Dil',so:'Luqad'};
+const LANGWORD={nl:'Taal',en:'Language',ar:'اللغة',fa:'زبان',ti:'ቋንቋ',ru:'Язык',tr:'Dil',so:'Luqad'};
 
 function steps(){const s=[{k:'welkom'}];S.questions.forEach(q=>{
  if(q.type==='matrix')(q.rows||[]).forEach(r=>{const key=q.id+'.'+r.id;s.push({k:'q',q,r,key});
@@ -21,16 +24,22 @@ function renderPhone(noAuto){
  autoBtn.onclick=()=>{C.auto=!C.auto;saveDraft();renderPhone();};
  const langBtn=h('button',{class:'iconbtn',type:'button',html:GLOBE+'<span>'+lg.c.toUpperCase()+'</span>','aria-label':'Taal kiezen'});langBtn.onclick=()=>{C.sheet=true;renderPhone(true);};
  ph.append(h('div',{class:'ph-top'},h('img',{src:'logo.png',alt:'EdINOVA',class:'logo-sm'}),h('div',{class:'ctx',html:PIN},h('span',null,vName(CTX.v)+' · '+CTX.g)),autoBtn,langBtn));
+ if(VOORBEELD)ph.append(h('div',{class:'voorbeeld',role:'status',style:'background:#f9b023;color:#1a1a1a;font-weight:700;text-align:center;padding:6px 10px;font-size:14px'},'Voorbeeld voor de docent – antwoorden worden niet opgeslagen'));
  const body=h('main',{class:'ph-body',dir:lg.dir,lang:lg.c});ph.append(body);
  const nav=h('div',{class:'ph-nav',dir:lg.dir});
  let main=null;
  if(cur.k==='welkom'){
   main=S.ui.welkomTitel;
   body.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.welkomTitel,C.lang)),sayBtn(S.ui.welkomTitel,C.lang)));
+  // grote taaltegels: tik op je taal (met luisterknop), daarna Start
+  body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:17px;margin:0'},tx(S.ui.taalHint,C.lang)),sayBtn(S.ui.taalHint,C.lang,'sm')));
+  const grid=h('div',{class:'langgrid',dir:'ltr',role:'radiogroup','aria-label':'Taal / Language'});
+  S.langs.forEach(l=>{const on=l.c===C.lang;
+   const b=h('button',{class:'langtile',type:'button',role:'radio','aria-checked':on?'true':'false','aria-pressed':on?'true':'false',dir:l.dir,lang:l.c},h('span',{class:'nm'},l.n),h('span',{class:'wd'},LANGWORD[l.c]||''));
+   b.onclick=()=>{if(C.lang===l.c)return;C.lang=l.c;stopAudio();saveDraft();loadAudio(l.c);renderPhone();};
+   grid.append(h('div',{class:'langcell'},b,sayBtn({nl:l.n,[l.c]:l.n,_src:{[l.c]:l.n}},l.c,'sm')));});
+  body.append(grid);
   body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:18px;font-weight:400;margin:0'},tx(S.ui.welkomTekst,C.lang)),sayBtn(S.ui.welkomTekst,C.lang)));
-  const lb=h('button',{class:'langbig',type:'button',html:GLOBE},h('span',null,S.langs.map(l=>LANGWORD[l.c]||l.n).join(' · ')));
-  lb.onclick=()=>{C.sheet=true;renderPhone(true);};body.append(lb);
-  body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:15px;font-weight:400;margin:0;color:var(--muted)'},tx(S.ui.taalHint,C.lang)),sayBtn(S.ui.taalHint,C.lang,'sm')));
   const sbtn=h('button',{class:'btn primary',type:'button'},tx(S.ui.start,C.lang));sbtn.onclick=()=>{C.step=1;saveDraft();renderPhone();};nav.append(sbtn);
  } else if(cur.k==='klaar'){
   // na versturen: bedankt + knop Klaar. Opnieuw invullen kan niet meer op dit toestel.
@@ -41,6 +50,8 @@ function renderPhone(noAuto){
   else blok.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.bedanktTitel,C.lang)),sayBtn(S.ui.bedanktTitel,C.lang)));
   if(!al||af)blok.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:17px;font-weight:400;margin:0'},tx(S.ui.bedanktTekst,C.lang)),sayBtn(S.ui.bedanktTekst,C.lang,'sm')));
   body.append(blok);
+  // voorbeeld voor de docent: altijd opnieuw te bekijken
+  if(VOORBEELD){const o=h('button',{class:'btn',type:'button'},'Opnieuw bekijken');o.onclick=()=>{C.afgerond=false;C.ans={};C.step=0;store.set(DRAFT_KEY(),null);stopAudio();renderPhone();};nav.append(o);}
   if(!af&&!al){const k=h('button',{class:'btn primary',type:'button'},tx(S.ui.klaarKnop,C.lang));
    k.onclick=()=>{C.afgerond=true;stopAudio();try{window.close();}catch(e){}renderPhone(true);};nav.append(k);}
   else nav.hidden=true;
@@ -109,6 +120,7 @@ async function submit(){
   if(!(r.followup.when||[]).includes(C.ans[k])){delete C.ans[k+'.b'];delete C.ans[k+'.b.anders'];}
   else if(C.ans[k+'.b']!==r.followup.other)delete C.ans[k+'.b.anders'];}));
  const antwoorden={};for(const[k,v]of Object.entries(C.ans)){if(v!==''&&v!=null)antwoorden[k]=typeof v==='string'?v.slice(0,2000):v;}
+ if(VOORBEELD){C.sending=false;store.set(DRAFT_KEY(),null);C.ans={};return true;}   // voorbeeld: niets opslaan, niet blokkeren
  const {error}=await sb.from('responses').insert({vestiging:CTX.v,groep:CTX.g,taal:C.lang,antwoorden});
  C.sending=false;
  if(error){console.error(error);renderPhone(true);toast('⚠️ Versturen lukte niet. Controleer je internet en probeer opnieuw. / Sending failed, please try again.',6000);return false;}
@@ -123,6 +135,6 @@ function fatal(msg){$('#phone').innerHTML='';$('#phone').append(h('div',{class:'
  if(!v||!g){fatal('Deze link is niet compleet of niet meer geldig.');return;}
  CTX.g=g;document.title='Evaluatie · '+v.n;
  const d=store.get(DRAFT_KEY());if(d){C.lang=S.langs.some(l=>l.c===d.lang)?d.lang:'nl';C.ans=d.ans||{};C.auto=!!d.auto;C.step=Math.min(d.step||0,steps().length-1);}
- if(store.get(DONE_KEY())){C.alIngevuld=true;C.ans={};C.step=steps().length-1;}
+ if(!VOORBEELD&&store.get(DONE_KEY())){C.alIngevuld=true;C.ans={};C.step=steps().length-1;}
  renderPhone(true);loadAudio(C.lang).then(()=>{});
 })();
