@@ -93,7 +93,7 @@ function renderLink(){
  if(!g){$('#lkUrl').textContent='Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#qr').innerHTML='';$('#lkPrev').textContent='';return;}
  const url=BASEURL+'?v='+encodeURIComponent(v)+'&g='+encodeURIComponent(slug(g));
  $('#lkUrl').textContent=url;const msg=$('#lkMsg').value.replace('{link}',url);$('#lkPrev').textContent=msg;
- $('#lkWa').href='https://wa.me/?text='+encodeURIComponent(msg);$('#lkTry').href=url;
+ $('#lkWa').href='https://wa.me/?text='+encodeURIComponent(msg);$('#lkTry').href=url+'&voorbeeld=1';
  const box=$('#qr');box.innerHTML='';
  try{const qr=qrcode(0,'M');qr.addData(url);qr.make();box.innerHTML=qr.createImgTag(6,8);const im=box.querySelector('img');if(im)im.alt='QR-code naar de vragenlijst';}catch(e){box.textContent='QR-code kon niet worden gemaakt.';}
 }
@@ -131,6 +131,38 @@ async function uploadAudio(o,l,file){
  if(error){toast('Opslaan lukte niet: '+error.message);return false;}
  AUD.set(l+'|'+hash,sb.storage.from('audio').getPublicUrl(path).data.publicUrl+'?v='+Date.now());return true;
 }
+/* Opnames in bulk uploaden. Bestandsnaam: <taal>-<nr>-<teksthash>.mp3 (bv. fa-12-1a2b3c4d5e6f7a8b.mp3).
+   De hash hoort bij precies één tekst; een bestand waarvan de tekst intussen is gewijzigd, wordt overgeslagen. */
+function bulkAudioPanel(){
+ const box=h('div',{class:'qcard',style:'margin-bottom:14px'});
+ const log=h('div',{class:'note',style:'white-space:pre-line;margin-top:8px'});
+ const fi=h('input',{type:'file',accept:'audio/*',multiple:'',style:'display:none'});
+ box.append(h('b',null,'Opnames in bulk uploaden'),h('p',{class:'note',style:'margin:4px 0 8px'},'Kies alle audiobestanden van één of meer talen tegelijk. De bestandsnaam bepaalt bij welke tekst de opname hoort (bijvoorbeeld fa-12-1a2b3c4d5e6f7a8b.mp3). Bestaande opnames worden vervangen.'),h('label',{class:'btn'},'Bestanden kiezen',fi),log);
+ fi.onchange=async()=>{
+  const files=[...fi.files];if(!files.length)return;
+  const known=new Map();// lang|hash -> nl-tekst
+  const texts=allTexts().concat(Object.values(S.options).map(o=>o.t));
+  for(const l of S.langs)for(const o of texts){const t=textOf(o,l.c);if(t)known.set(l.c+'|'+textHash(t),o.nl);}
+  let ok=0,skip=[],fail=[];log.textContent='Bezig… 0 van '+files.length;
+  for(const f of files){
+   const m=f.name.match(/^([a-z]{2,3})-\d+-([0-9a-f]{16})\.(mp3|m4a|wav|ogg)$/i);
+   if(!m){skip.push(f.name+' (naam niet herkend)');continue;}
+   const l=m[1].toLowerCase(),hash=m[2].toLowerCase(),ext=m[3].toLowerCase();
+   if(!known.has(l+'|'+hash)){skip.push(f.name+' (tekst bestaat niet of is gewijzigd)');continue;}
+   if(f.size>5*1024*1024){skip.push(f.name+' (groter dan 5 MB)');continue;}
+   const path=`${l}/${hash}.${ext}`;
+   const up=await sb.storage.from('audio').upload(path,f,{upsert:true,contentType:f.type||'audio/mpeg'});
+   if(up.error){fail.push(f.name+': '+up.error.message);continue;}
+   const {error}=await sb.from('audio').upsert({lang:l,text_hash:hash,path,source:'opname'});
+   if(error){fail.push(f.name+': '+error.message);continue;}
+   AUD.set(l+'|'+hash,sb.storage.from('audio').getPublicUrl(path).data.publicUrl+'?v='+Date.now());ok++;
+   log.textContent='Bezig… '+(ok+skip.length+fail.length)+' van '+files.length;
+  }
+  log.textContent=`Klaar: ${ok} opname(s) gekoppeld.`+(skip.length?`\nOvergeslagen (${skip.length}):\n`+skip.join('\n'):'')+(fail.length?`\nMislukt (${fail.length}):\n`+fail.join('\n'):'');
+  toast(ok+' opname(s) gekoppeld');fi.value='';
+ };
+ return box;
+}
 function textField(o,label,opts={}){
  const id='tf'+(++uid);
  const wrap=h('div',{class:'tf'});
@@ -164,6 +196,7 @@ const TYPES={choice:'Keuze',matrix:'Tabel (stellingen)',stars:'Sterren 1–5',op
 const E=()=>Tnew('','','','','','','','');
 function renderEditor(){
  const ed=$('#editor');ed.innerHTML='';refreshStats();
+ ed.append(bulkAudioPanel());
  ed.append(h('div',{class:'ed-sec'},h('h2',null,'Vragen'),h('span',{class:'note'},'Volgorde, type en tekst. Tabelvragen tonen de cursist één stelling per scherm.')));
  S.questions.forEach((q,i)=>{
   const card=h('div',{class:'qcard'});
