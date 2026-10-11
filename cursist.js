@@ -31,15 +31,10 @@ function renderPhone(noAuto){
  if(cur.k==='welkom'){
   main=S.ui.welkomTitel;
   body.append(h('div',{class:'qtext'},h('h1',{class:'t'},tx(S.ui.welkomTitel,C.lang)),sayBtn(S.ui.welkomTitel,C.lang)));
-  // grote taaltegels: tik op je taal (met luisterknop), daarna Start
-  body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:17px;margin:0'},tx(S.ui.taalHint,C.lang)),sayBtn(S.ui.taalHint,C.lang,'sm')));
-  const grid=h('div',{class:'langgrid',dir:'ltr',role:'radiogroup','aria-label':'Taal / Language'});
-  S.langs.forEach(l=>{const on=l.c===C.lang;
-   const b=h('button',{class:'langtile',type:'button',role:'radio','aria-checked':on?'true':'false','aria-pressed':on?'true':'false',dir:l.dir,lang:l.c},h('span',{class:'nm'},l.n),h('span',{class:'wd'},LANGWORD[l.c]||''));
-   b.onclick=()=>{if(C.lang===l.c)return;C.lang=l.c;stopAudio();saveDraft();loadAudio(l.c);renderPhone();};
-   grid.append(h('div',{class:'langcell'},b,sayBtn({nl:l.n,[l.c]:l.n,_src:{[l.c]:l.n}},l.c,'sm')));});
-  body.append(grid);
   body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:18px;font-weight:400;margin:0'},tx(S.ui.welkomTekst,C.lang)),sayBtn(S.ui.welkomTekst,C.lang)));
+  const lb=h('button',{class:'langbig',type:'button',html:GLOBE},h('span',null,S.langs.map(l=>LANGWORD[l.c]||l.n).join(' · ')));
+  lb.onclick=()=>{C.sheet=true;renderPhone(true);};body.append(lb);
+  body.append(h('div',{class:'qtext'},h('p',{class:'t',style:'font-size:15px;font-weight:400;margin:0;color:var(--muted)'},tx(S.ui.taalHint,C.lang)),sayBtn(S.ui.taalHint,C.lang,'sm')));
   const sbtn=h('button',{class:'btn primary',type:'button'},tx(S.ui.start,C.lang));sbtn.onclick=()=>{C.step=1;saveDraft();renderPhone();};nav.append(sbtn);
  } else if(cur.k==='klaar'){
   // na versturen: bedankt + knop Klaar. Opnieuw invullen kan niet meer op dit toestel.

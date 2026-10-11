@@ -291,3 +291,9 @@ nav.tabs button:hover{color:var(--accent)}
 .say.playing{background:var(--sun);color:var(--sun-ink)}
 .thanks .big{filter:none}
 .print-only img{height:30px}
+
+/* knop en paneel voor leegmaken */
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+.clearbox{border-color:var(--bad);background:var(--bad-soft);margin-bottom:14px}
+@media print{.clearbox{display:none!important}}
+

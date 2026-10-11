@@ -61,9 +61,11 @@ function play(o,l,btn){
  const done=()=>{if(btn)btn.classList.remove('playing');if(curBtn===btn)curBtn=null;};
  const rec=AUD.get(lang+'|'+textHash(raw));
  if(rec){curAudio=new Audio(rec);curAudio.onended=done;curAudio.onerror=done;curAudio.play().catch(done);return;}
- const v=voiceFor(lang);
- if(!('speechSynthesis' in window)||!v){done();toast(lang==='nl'?'Voorlezen is niet beschikbaar op dit toestel.':'🔇');return;}
- const u=new SpeechSynthesisUtterance(text);u.voice=v;u.lang=v.lang;u.rate=.9;u.onend=done;u.onerror=done;speechSynthesis.speak(u);
+ if(!('speechSynthesis' in window)){done();toast(lang==='nl'?'Voorlezen is niet beschikbaar op dit toestel.':'🔇');return;}
+ loadVoices();const v=voiceFor(lang);
+ // Geen passende stem in de lijst (Android geeft niet altijd alle stemmen door): toch proberen met alleen de taalcode
+ const u=new SpeechSynthesisUtterance(text);if(v){u.voice=v;u.lang=v.lang;}else u.lang=L(lang).bcp||lang;
+ u.rate=.9;u.onend=done;u.onerror=()=>{done();toast('🔇');};speechSynthesis.speak(u);
 }
 function sayBtn(o,l,cls){const b=h('button',{class:'say '+(cls||''),type:'button','aria-label':'Luister',html:SPK});b.addEventListener('click',e=>{e.stopPropagation();play(o,l,b);});return b;}
 
@@ -98,7 +100,8 @@ function migrateConfig(){
   const r4=q2&&q2.rows&&q2.rows.find(x=>x.id==='r4');if(r4&&!r4.followup)r4.followup=dq2.rows.find(x=>x.id==='r4').followup;
  }
  if(v<4){['klaarKnop','alIngevuld'].forEach(k=>{if(!S.ui[k])S.ui[k]=d.ui[k];});}
- if(v<6){S.ui.taalHint=d.ui.taalHint;}   // taalkeuze op het welkomstscherm
  if(v<7)ukNaarRu(d);
- S._versie=7;
+ // 11-10: taaltegels teruggedraaid; oude taalzin terugzetten als de nieuwe er al stond
+ if(v<8&&S.ui.taalHint&&/^Kies je taal/.test(S.ui.taalHint.nl||''))S.ui.taalHint=d.ui.taalHint;
+ S._versie=8;
 }

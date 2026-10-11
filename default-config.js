@@ -18,7 +18,7 @@ function defaultState(){return{
  ui:{
   welkomTitel:T('Welkom!','Welcome!','أهلاً وسهلاً!','خوش آمدید!','እንቋዕ ብደሓን መጻእኩም!','Добро пожаловать!','Hoş geldin!','Soo dhawoow!'),
   welkomTekst:T('Wat vind jij van de cursus? Wij willen het graag weten. Je vult je naam niet in. Je antwoorden zijn anoniem.','What do you think of the course? We would like to know. You do not fill in your name. Your answers are anonymous.','ما رأيك في الدورة؟ نودّ أن نعرف. لا تكتب اسمك. إجاباتك مجهولة الهوية.','نظر شما درباره دوره چیست؟ دوست داریم بدانیم. نام خود را وارد نمی‌کنید. پاسخ‌های شما ناشناس است.','ብዛዕባ እቲ ኮርስ እንታይ ትሓስብ? ክንፈልጥ ንደሊ። ስምካ ኣይትጽሕፍን ኢኻ። መልስታትካ ብዘይ ስም እዮም።','Что ты думаешь о курсе? Мы хотим это знать. Своё имя ты не пишешь. Твои ответы анонимны.','Kurs hakkında ne düşünüyorsun? Bunu bilmek istiyoruz. Adını yazmıyorsun. Cevapların anonimdir.','Maxaad ka qabtaa koorsada? Waxaan jeclaan lahayn inaan ogaanno. Magacaaga ma qorayso. Jawaabahaagu waa qarsoodi.'),
-  taalHint:Tnew('Kies je taal. Druk op de luidspreker om te luisteren.','Choose your language. Press the speaker to listen.','اختر لغتك. اضغط على السمّاعة للاستماع.','زبان خود را انتخاب کنید. برای شنیدن، روی بلندگو بزنید.','ቋንቋኻ ምረጽ። ንምስማዕ ነቲ ድምጺ ዘለዎ ምልክት ጠውቕ።','Выбери свой язык. Нажми на динамик, чтобы послушать.','Dilini seç. Dinlemek için hoparlöre bas.','Dooro luqaddaada. Riix sameecadda si aad u dhagaysato.'),
+  taalHint:T('Druk op de knop hierboven voor een andere taal.','Press the button above for another language.','اضغط على الزر أعلاه لاختيار لغة أخرى.','برای زبان دیگر، دکمه بالا را بزنید.','ንካልእ ቋንቋ ነቲ ኣብ ላዕሊ ዘሎ መጠወቒ ጠውቕ።','Нажми на кнопку вверху, чтобы выбрать другой язык.','Başka bir dil için yukarıdaki düğmeye bas.','Riix badhanka sare si aad u doorato luqad kale.'),
   start:T('Start','Start','ابدأ','شروع','ጀምር','Начать','Başla','Bilow'),
   volgende:T('Volgende','Next','التالي','بعدی','ቀጽል','Далее','İleri','Xiga'),
   terug:T('Terug','Back','رجوع','بازگشت','ተመለስ','Назад','Geri','Dib u noqo'),
@@ -117,5 +117,5 @@ function defaultState(){return{
   {c:'TXL',n:'Texel',prefix:'Bolder',groepen:[]}],
  klassen:[],
  klasVestiging:{},
- _versie:7
+ _versie:8
 };}
