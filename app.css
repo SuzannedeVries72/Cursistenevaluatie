@@ -135,6 +135,12 @@ textarea.answer{min-height:150px;border:2px solid var(--line);border-radius:14px
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .waprev{background:#1d3b2a;color:#e4ebe9}}
 #qr{background:#fff;padding:10px;border-radius:12px;display:inline-block;line-height:0}
 #qr img{width:180px;height:180px;image-rendering:pixelated}
+#qr[hidden]{display:none}
+.qrbig{position:fixed;inset:0;z-index:1000;background:#fff;color:#14213a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+.qrbig img{width:min(70vh,85vw);height:min(70vh,85vw);image-rendering:pixelated}
+.qrbig-t{font-size:clamp(22px,4vh,40px);font-weight:800}
+.qrbig-g{font-size:clamp(16px,2.6vh,26px);color:#5b6780}
+.qrbig .qrclose{position:absolute;top:16px;right:16px}
 
 /* beheer */
 .ed-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}

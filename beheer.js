@@ -88,16 +88,30 @@ const BASEURL=location.origin+location.pathname.replace(/beheer\.html$/,'');
 function renderLink(){
  const v=$('#lkV').value,g=$('#lkG').value;
  const wie=BEZET[v+'|'+g],vrij=!wie||wie===ME||ROLE==='beheerder';
- ['lkWa','lkTry','lkCopy'].forEach(id=>{const el=$('#'+id),off=!g||!vrij;el.classList.toggle('disabled',off);el.style.opacity=off?'.45':'';el.style.pointerEvents=off?'none':'';el.setAttribute('aria-disabled',off);});
- if(g&&!vrij){$('#lkUrl').textContent='Deze groep is al gekoppeld aan '+wie+'.';$('#lkWa').removeAttribute('href');$('#lkTry').removeAttribute('href');$('#qr').innerHTML='';$('#lkPrev').textContent='';return;}
- if(!g){$('#lkUrl').textContent='Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#qr').innerHTML='';$('#lkPrev').textContent='';return;}
+ ['lkWa','lkTry','lkCopy','lkQr'].forEach(id=>{const el=$('#'+id),off=!g||!vrij;el.classList.toggle('disabled',off);el.style.opacity=off?'.45':'';el.style.pointerEvents=off?'none':'';el.setAttribute('aria-disabled',off);});
+ if(g&&!vrij){$('#lkUrl').textContent='Deze groep is al gekoppeld aan '+wie+'.';$('#lkWa').removeAttribute('href');$('#lkTry').removeAttribute('href');$('#qr').innerHTML='';$('#qr').hidden=true;QRFOR='';LINKURL='';$('#lkPrev').textContent='';return;}
+ if(!g){$('#lkUrl').textContent='Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#qr').innerHTML='';$('#qr').hidden=true;QRFOR='';LINKURL='';$('#lkPrev').textContent='';return;}
  const url=BASEURL+'?v='+encodeURIComponent(v)+'&g='+encodeURIComponent(slug(g));
  $('#lkUrl').textContent=url;const msg=$('#lkMsg').value.replace('{link}',url);$('#lkPrev').textContent=msg;
  $('#lkWa').href='https://wa.me/?text='+encodeURIComponent(msg);$('#lkTry').href=url+'&voorbeeld=1';
- const box=$('#qr');box.innerHTML='';
- try{const qr=qrcode(0,'M');qr.addData(url);qr.make();box.innerHTML=qr.createImgTag(6,8);const im=box.querySelector('img');if(im)im.alt='QR-code naar de vragenlijst';}catch(e){box.textContent='QR-code kon niet worden gemaakt.';}
+ LINKURL=url;
+ // QR-code pas tonen na klik op "Toon QR-code" (die koppelt de docent); bij een andere groep weer verbergen
+ if(QRFOR!==url){const box=$('#qr');box.innerHTML='';box.hidden=true;QRFOR='';}
 }
-/* Docent koppelen aan de gekozen groep zodra hij de link deelt, kopieert of bekijkt */
+let LINKURL='',QRFOR='';
+function qrImg(url,cell){const qr=qrcode(0,'M');qr.addData(url);qr.make();const tmp=document.createElement('div');tmp.innerHTML=qr.createImgTag(cell,cell*2);const im=tmp.querySelector('img');im.alt='QR-code naar de vragenlijst';return im;}
+function qrGroot(){const g=$('#lkG').value,v=$('#lkV').value;let im;try{im=qrImg(LINKURL,12);}catch(e){toast('QR-code kon niet worden gemaakt.');return;}
+ const close=()=>{ov.remove();document.removeEventListener('keydown',esc);};const esc=e=>{if(e.key==='Escape')close();};
+ const ov=h('div',{class:'qrbig',role:'dialog','aria-modal':'true','aria-label':'QR-code voor '+g},
+  h('button',{class:'btn qrclose',type:'button','aria-label':'Sluiten'},'✕ Sluiten'),
+  h('div',{class:'qrbig-t'},'Scan met je telefooncamera'),im,
+  h('div',{class:'qrbig-g'},vName(v)+' · '+g));
+ ov.querySelector('.qrclose').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});document.addEventListener('keydown',esc);
+ document.body.append(ov);ov.querySelector('.qrclose').focus();}
+$('#lkQr').onclick=async()=>{if($('#lkQr').classList.contains('disabled')||!LINKURL)return;if(!(await koppel()))return;
+ const box=$('#qr');try{box.innerHTML='';box.append(qrImg(LINKURL,6));box.hidden=false;QRFOR=LINKURL;}catch(e){box.textContent='QR-code kon niet worden gemaakt.';box.hidden=false;}
+ qrGroot();};
+/* Docent koppelen aan de gekozen groep zodra hij de link deelt, kopieert, bekijkt of de QR-code toont */
 async function koppel(){
  const v=$('#lkV').value,g=$('#lkG').value;if(!ME||!v||!g)return true;
  if(ROLE==='beheerder')return true;                       // beheerder ziet alles en bezet geen groep
