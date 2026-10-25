@@ -59,14 +59,17 @@ function showTab(id){if(id==='beheer'&&ROLE!=='beheerder')id='link';document.que
  if(id==='beheer')renderEditor();if(id==='resultaten')loadResults();if(id==='link'){renderLink();loadMine().then(syncLink);}
  try{history.replaceState(null,'','#'+id)}catch(e){}window.scrollTo(0,0);}
 document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-function fillV(sel,withAll){const cur=sel.value;sel.innerHTML='';if(withAll)sel.append(h('option',{value:''},'Alle vestigingen'));S.vestigingen.forEach(v=>sel.append(h('option',{value:v.c},v.n)));if([...sel.options].some(o=>o.value===cur))sel.value=cur;}
+function fillV(sel,withAll,leeg){const cur=sel.value;sel.innerHTML='';if(withAll)sel.append(h('option',{value:''},'Alle vestigingen'));if(leeg)sel.append(h('option',{value:''},leeg));S.vestigingen.forEach(v=>sel.append(h('option',{value:v.c},v.n)));if([...sel.options].some(o=>o.value===cur))sel.value=cur;else if(leeg)sel.value='';}
 function fillG(sel,vc){const cur=sel.value;const v=S.vestigingen.find(x=>x.c===vc);sel.innerHTML='';
  (v&&v.groepen||[]).forEach(g=>{const wie=BEZET[vc+'|'+g];const ander=wie&&wie!==ME;
   sel.append(h('option',{value:g,disabled:ander&&ROLE!=='beheerder'?'':null},g+(wie===ME?' (jouw groep)':ander?' (al gekoppeld aan '+wie+')':'')));});
+ // 25-10: na inloggen staan vestiging en groep leeg; na een andere vestiging staat er geen groep klaar; de docent kiest zelf bewust zijn groep
+ if(!vc){sel.append(h('option',{value:''},'– kies eerst je vestiging –'));sel.value='';return;}
  if(!sel.options.length)sel.append(h('option',{value:''},'(nog geen groepen ingevoerd)'));
- const ok=[...sel.options].filter(o=>!o.disabled);
- if(ok.some(o=>o.value===cur))sel.value=cur;else if(ok.length)sel.value=ok[0].value;else sel.value='';}
-function syncV(){fillV($('#lkV'));fillV($('#rsV'),true);fillG($('#lkG'),$('#lkV').value);}
+ else sel.prepend(h('option',{value:''},'– kies je groep –'));
+ const ok=[...sel.options].filter(o=>!o.disabled&&o.value);
+ sel.value=ok.some(o=>o.value===cur)?cur:'';}
+function syncV(){fillV($('#lkV'),false,'– kies je vestiging –');fillV($('#rsV'),true);fillG($('#lkG'),$('#lkV').value);}
 
 /* ---------- opslaan ---------- */
 let saveT=null,dirty=false;
@@ -90,7 +93,7 @@ function renderLink(){
  const wie=BEZET[v+'|'+g],vrij=!wie||wie===ME||ROLE==='beheerder';
  ['lkWa','lkTry','lkCopy','lkQr'].forEach(id=>{const el=$('#'+id),off=!g||!vrij;el.classList.toggle('disabled',off);el.style.opacity=off?'.45':'';el.style.pointerEvents=off?'none':'';el.setAttribute('aria-disabled',off);});
  if(g&&!vrij){$('#lkUrl').textContent='Deze groep is al gekoppeld aan '+wie+'.';$('#lkWa').removeAttribute('href');$('#lkTry').removeAttribute('href');$('#qr').innerHTML='';$('#qr').hidden=true;QRFOR='';LINKURL='';$('#lkPrev').textContent='';return;}
- if(!g){$('#lkUrl').textContent='Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#qr').innerHTML='';$('#qr').hidden=true;QRFOR='';LINKURL='';$('#lkPrev').textContent='';return;}
+ if(!g){$('#lkUrl').textContent=!v?'Kies eerst je vestiging en je groep. Daarna verschijnen hier de link en de knoppen.':$('#lkG').options.length>1?'Kies eerst je groep. Daarna verschijnen hier de link en de knoppen.':'Voer eerst groepen in bij Vragen & talen → Vestigingen en groepen.';$('#lkWa').removeAttribute('href');$('#lkTry').removeAttribute('href');$('#qr').innerHTML='';$('#qr').hidden=true;QRFOR='';LINKURL='';$('#lkPrev').textContent='';return;}
  const url=BASEURL+'?v='+encodeURIComponent(v)+'&g='+encodeURIComponent(slug(g));
  $('#lkUrl').textContent=url;const msg=$('#lkMsg').value.replace('{link}',url);$('#lkPrev').textContent=msg;
  $('#lkWa').href='https://wa.me/?text='+encodeURIComponent(msg);$('#lkTry').href=url+'&voorbeeld=1';
