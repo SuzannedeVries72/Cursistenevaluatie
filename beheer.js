@@ -2,7 +2,9 @@
 /* Beheer: inloggen, link maken, vragen & talen bewerken (opslaan in Supabase), resultaten en Excel-export. */
 let CONFIG_UPDATED=null;   // updated_at van de geladen vragenlijst (voor botsingscontrole)
 let RESP=[];               // antwoorden uit de database
-let ROLE=null;             // 'beheerder' of 'docent'
+let ROLE=null;             // 'beheerder', 'regiomanager' of 'docent'
+let REGIO='',REGIO_V=[];   // regiomanager: naam van de regio en de vestigingscodes die hij/zij mag zien
+const KAN_EXPORT=()=>ROLE==='beheerder'||ROLE==='regiomanager';
 let ME=null;               // e-mail van de ingelogde gebruiker
 let BEZET={};             // 'vestiging|groep' -> e-mail van de gekoppelde docent
 let MINE=[];               // groepen die aan deze gebruiker gekoppeld zijn
@@ -38,28 +40,30 @@ async function start(){
  if(!session){showOnly('login');return;}
  const {data:role,error:e1}=await sb.rpc('my_role');
  ROLE=e1?null:role;
+ if(ROLE==='regiomanager'){const {data:rm}=await sb.from('regiomanagers').select('regio,vestigingen').eq('email',ME).maybeSingle();REGIO=rm?rm.regio:'';REGIO_V=rm?rm.vestigingen:[];}
  if(!ROLE){showOnly('noaccess');$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;return;}
  try{const row=await loadConfig();CONFIG_UPDATED=row?row.updated_at:null;
   if(!row){if(ROLE==='beheerder')await saveConfig(true);else{showOnly('boot');$('#boot').innerHTML='<p class="lead">De vragenlijst is nog niet ingesteld. Vraag de beheerder om eerst in te loggen.</p>';$('#userbox').hidden=false;$('#userMail').textContent=session.user.email;return;}}}
  catch(e){showOnly('boot');$('#boot').innerHTML='<p class="err">De vragenlijst kon niet worden geladen: '+(e.message||e)+'</p>';return;}
  await loadAudio();
  ['login','noaccess','boot'].forEach(x=>$('#'+x).hidden=true);
- $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email+' · '+ROLE;
+ $('#tabs').hidden=false;$('#userbox').hidden=false;$('#userMail').textContent=session.user.email+' · '+ROLE+(REGIO?' '+REGIO:'');
  document.querySelector('#tabs [data-tab="beheer"]').hidden=ROLE!=='beheerder';
- $('#rsExport').hidden=ROLE!=='beheerder';$('#rsPrint').hidden=ROLE!=='beheerder';$('#rsClear').hidden=ROLE!=='beheerder';
+ document.querySelector('#tabs [data-tab="link"]').hidden=ROLE==='regiomanager';
+ $('#rsExport').hidden=!KAN_EXPORT();$('#rsPrint').hidden=!KAN_EXPORT();$('#rsClear').hidden=ROLE!=='beheerder';
  await loadMine();
- $('#rsScope').textContent=ROLE==='beheerder'?'Je ziet de resultaten van alle groepen.':'Je ziet alleen de resultaten van de groepen die aan jou gekoppeld zijn (zie Link maken → Mijn groepen).';
- syncV();const t=(location.hash||'').slice(1);showTab(['link','resultaten'].concat(ROLE==='beheerder'?['beheer']:[]).includes(t)?t:'link');
+ $('#rsScope').textContent=ROLE==='beheerder'?'Je ziet de resultaten van alle groepen.':ROLE==='regiomanager'?'Je ziet de resultaten van alle groepen in regio '+REGIO+'. Je kunt niets verwijderen of wijzigen.':'Je ziet alleen de resultaten van de groepen die aan jou gekoppeld zijn (zie Link maken → Mijn groepen).';
+ syncV();const t=(location.hash||'').slice(1);showTab(ROLE==='regiomanager'?'resultaten':['link','resultaten'].concat(ROLE==='beheerder'?['beheer']:[]).includes(t)?t:'link');
 }
 sb&&sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){showOnly('login');$('#loginForm').hidden=true;$('#pwForm').hidden=false;}});
 
 /* ---------- tabs ---------- */
-function showTab(id){if(id==='beheer'&&ROLE!=='beheerder')id='link';document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id?'true':'false'));
+function showTab(id){if(ROLE==='regiomanager')id='resultaten';else if(id==='beheer'&&ROLE!=='beheerder')id='link';document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id?'true':'false'));
  document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!=='tab-'+id);stopAudio();
  if(id==='beheer')renderEditor();if(id==='resultaten')loadResults();if(id==='link'){renderLink();loadMine().then(syncLink);}
  try{history.replaceState(null,'','#'+id)}catch(e){}window.scrollTo(0,0);}
 document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-function fillV(sel,withAll,leeg){const cur=sel.value;sel.innerHTML='';if(withAll)sel.append(h('option',{value:''},'Alle vestigingen'));if(leeg)sel.append(h('option',{value:''},leeg));S.vestigingen.forEach(v=>sel.append(h('option',{value:v.c},v.n)));if([...sel.options].some(o=>o.value===cur))sel.value=cur;else if(leeg)sel.value='';}
+function fillV(sel,withAll,leeg){const cur=sel.value;sel.innerHTML='';if(withAll)sel.append(h('option',{value:''},ROLE==='regiomanager'?'Alle vestigingen van '+REGIO:'Alle vestigingen'));if(leeg)sel.append(h('option',{value:''},leeg));S.vestigingen.filter(v=>ROLE!=='regiomanager'||REGIO_V.includes(v.c)).forEach(v=>sel.append(h('option',{value:v.c},v.n)));if([...sel.options].some(o=>o.value===cur))sel.value=cur;else if(leeg)sel.value='';}
 function fillG(sel,vc){const cur=sel.value;const v=S.vestigingen.find(x=>x.c===vc);sel.innerHTML='';
  (v&&v.groepen||[]).forEach(g=>{const wie=BEZET[vc+'|'+g];const ander=wie&&wie!==ME;
   sel.append(h('option',{value:g,disabled:ander&&ROLE!=='beheerder'?'':null},g+(wie===ME?' (jouw groep)':ander?' (al gekoppeld aan '+wie+')':'')));});
@@ -118,6 +122,7 @@ $('#lkQr').onclick=async()=>{if($('#lkQr').classList.contains('disabled')||!LINK
 async function koppel(){
  const v=$('#lkV').value,g=$('#lkG').value;if(!ME||!v||!g)return true;
  if(ROLE==='beheerder')return true;                       // beheerder ziet alles en bezet geen groep
+ if(ROLE==='regiomanager')return false;                   // regiomanager koppelt zich nooit aan een groep
  if(MINE.some(m=>m.vestiging===v&&m.groep===g))return true;
  const wie=BEZET[v+'|'+g];if(wie&&wie!==ME){toast('Deze groep is al gekoppeld aan '+wie+'.');return false;}
  const {error}=await sb.from('docent_groep').insert({email:ME,vestiging:v,groep:g});
@@ -427,7 +432,7 @@ function colsDef(){const c=[];S.questions.forEach((q,i)=>{if(q.type==='matrix')(
 function rowOf(d,cols){const dt=new Date(d.ts);const o={'Datum':dt.toLocaleDateString('nl-NL'),'Tijd':dt.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}),'Vestiging':vName(d.v),'Groep':d.g,'Taal':L(d.lang).n};
  cols.forEach(c=>{const a=d.ans[c.key];o[c.h]=a==null?'':c.q.type==='stars'?a:c.q.type==='open'?a:(S.options[a]?S.options[a].t.nl:a);});return o;}
 $('#rsExport').onclick=()=>{
- if(ROLE!=='beheerder'){toast('Exporteren kan alleen de beheerder.');return;}
+ if(!KAN_EXPORT()){toast('Exporteren kan alleen de beheerder of regiomanager.');return;}
  if(typeof XLSX==='undefined'){toast('Excel-bibliotheek niet geladen.');return;}
  const cols=colsDef(),all=filtered();if(!all.length){toast('Geen reacties in deze selectie.');return;}
  const wb=XLSX.utils.book_new();
@@ -459,7 +464,7 @@ function overzicht(all){
 
 /* Rapport als PDF: de browser maakt er een PDF van via afdrukken */
 $('#rsPrint').onclick=()=>{
- if(ROLE!=='beheerder')return;
+ if(!KAN_EXPORT())return;
  const v=$('#rsV'),g=$('#rsG'),f=$('#rsFrom').value,t=$('#rsTo').value;
  $('#rsPrintHead').innerHTML='';
  $('#rsPrintHead').append(h('img',{src:'logo.png',alt:'EdINOVA'}),h('h1',null,'Cursistenevaluatie'),h('p',null,
