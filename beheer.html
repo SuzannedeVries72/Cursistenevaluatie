@@ -17,6 +17,7 @@
       <button role="tab" data-tab="link" aria-selected="true">Link maken</button>
       <button role="tab" data-tab="beheer">Vragen &amp; talen</button>
       <button role="tab" data-tab="resultaten">Resultaten</button>
+      <button role="tab" data-tab="toegang">Toegang</button>
     </nav>
     <div class="userbox" id="userbox" hidden><span id="userMail"></span><button class="btn small" id="logout">Uitloggen</button></div>
   </div>
@@ -100,9 +101,9 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оценка · De
     <div>
       <div class="eyebrow">Voor de maker</div>
       <h2 style="font-size:26px;margin-top:4px">Vragen &amp; talen</h2>
-      <p class="lead" style="margin:6px 0 0">Pas alleen het Nederlands aan. De talenchips laten zien welke vertalingen bijgewerkt moeten worden. Klik op een chip voor vertaling en audio. Wijzigingen worden automatisch opgeslagen en zijn direct live voor cursisten.</p>
+      <p class="lead" id="edLead" style="margin:6px 0 0">Pas alleen het Nederlands aan. De talenchips laten zien welke vertalingen bijgewerkt moeten worden. Klik op een chip voor vertaling en audio. Wijzigingen worden automatisch opgeslagen en zijn direct live voor cursisten.</p>
     </div>
-    <div style="display:grid;gap:8px;justify-items:end">
+    <div style="display:grid;gap:8px;justify-items:end" id="edActions">
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <button class="btn primary" id="edTranslate">Vertaal gewijzigde teksten</button>
         <button class="btn" id="edReset">Herstel standaard</button>
@@ -143,6 +144,27 @@ Evaluation · تقييم · ارزیابی · ገምጋም · Оценка · De
   <div class="print-only" id="rsPrintHead"></div>
   <div class="kpis" id="rsKpis"></div>
   <div class="rgrid" id="rsGrid"></div>
+</section>
+
+<!-- ===================== TOEGANG (alleen beheerder) ===================== -->
+<section class="tab" id="tab-toegang" hidden>
+  <div class="eyebrow">Voor de beheerder</div>
+  <h2 style="font-size:26px;margin-block:4px 6px">Toegang voor anderen</h2>
+  <p class="lead">Geef iemand een account en vink aan wat die persoon mag. De persoon maakt zelf een account aan met dit e-mailadres (Inloggen → Nog geen account? Aanmelden) of logt in als er al een account is.</p>
+  <div class="panel" style="display:grid;gap:14px;margin-top:18px">
+    <b>Account toevoegen</b>
+    <form id="tgForm" style="display:grid;gap:14px">
+      <div class="tg-two">
+        <div class="field"><label for="tgMail">E-mailadres</label><input id="tgMail" class="input" type="email" required placeholder="naam@organisatie.nl"></div>
+        <div class="field"><label for="tgNaam">Naam (voor jezelf)</label><input id="tgNaam" class="input" type="text" placeholder="bijv. Jan Jansen, gemeente Alkmaar"></div>
+      </div>
+      <fieldset class="perm"><legend>Deze persoon mag</legend><div id="tgPerm" class="perm-grid"></div></fieldset>
+      <fieldset class="perm"><legend>Van welke vestigingen</legend><div id="tgVest" class="perm-grid"></div><span class="note">Niets aangevinkt betekent alle vestigingen. Dit geldt voor de resultaten, de Excel en de PDF.</span></fieldset>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn primary" type="submit" id="tgAdd">Account toevoegen</button><span class="err" id="tgErr" role="alert"></span></div>
+    </form>
+  </div>
+  <div class="ed-sec"><h2>Accounts met eigen rechten</h2><span class="note">Een vinkje aan- of uitzetten wordt direct opgeslagen. Verwijderen haalt alle rechten weg; het inlogaccount zelf blijft bestaan.</span></div>
+  <div class="panel" id="tgList"><span class="note">Laden…</span></div>
 </section>
 
 </main>
