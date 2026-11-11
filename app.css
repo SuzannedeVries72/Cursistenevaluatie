@@ -303,3 +303,17 @@ nav.tabs button:hover{color:var(--accent)}
 .clearbox{border-color:var(--bad);background:var(--bad-soft);margin-bottom:14px}
 @media print{.clearbox{display:none!important}}
 
+
+/* ===== toegang op maat (beheerder) en alleen-lezen vragenlijst ===== */
+.tg-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.tg-two{grid-template-columns:minmax(0,1fr)}}
+fieldset.perm{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0;min-width:0}
+fieldset.perm legend{font-size:13px;font-weight:700;color:var(--muted);padding:0 6px}
+.perm-grid{display:grid;gap:8px}
+.perm-vest{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.perm-opt{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.perm-opt input{margin-top:3px;width:18px;height:18px;flex:none}
+.perm-opt small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.tg-table td{vertical-align:top;min-width:160px}
+.readonly input:disabled,.readonly select:disabled,.readonly textarea:disabled{opacity:1;color:inherit;cursor:default}
+@media print{body.nopdf main,body.nopdf .print-only{display:none!important}}
